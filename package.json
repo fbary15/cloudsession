@@ -1,0 +1,20 @@
+{
+  "name": "cloudsession",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Small web projects built from Claude Code cloud sessions, starting with a daily word puzzle.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint .",
+    "build:artifact": "node scripts/build-artifact.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0"
+  }
+}
