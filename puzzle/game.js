@@ -1,17 +1,14 @@
-// The page side of Daily Word: board, keyboard, panels and saving progress.
+// The page side of Word Tiles: board, keyboard, panels and saving progress.
 // All the rules live in logic.js.
 
 import {
   MAX_GUESSES,
   WORD_LENGTH,
-  answerFor,
-  currentStreak,
-  formatCountdown,
   gameStatus,
-  msUntilNextPuzzle,
   normalizeStats,
-  puzzleNumber,
+  pickAnswer,
   recordResult,
+  rememberAnswer,
   scoreGuess,
   shareText,
   updateKeyStates,
@@ -19,6 +16,7 @@ import {
 } from './logic.js';
 import { ANSWERS, VALID_WORDS } from './words.js';
 
+// The key keeps its original name so stats from the daily version carry over.
 const STORAGE_KEY = 'daily-word:v1';
 const FLIP_MS = 500;
 const STAGGER_MS = 280;
@@ -32,6 +30,7 @@ const STATE_LABEL = {
 };
 const BACKSPACE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-6-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m12 9 6 6m0-6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
+const answerSet = new Set(ANSWERS);
 const validWords = new Set(VALID_WORDS.split(' '));
 for (const word of ANSWERS) validWords.add(word);
 
@@ -41,28 +40,30 @@ const el = {
   board: byId('board'),
   keyboard: byId('keyboard'),
   toasts: byId('toasts'),
-  number: byId('puzzle-no'),
-  date: byId('puzzle-date'),
+  gameNo: byId('game-no'),
+  streakLine: byId('streak-line'),
   help: byId('help'),
   stats: byId('stats'),
-  todayLine: byId('today-line'),
+  giveup: byId('giveup'),
+  resultLine: byId('result-line'),
   played: byId('st-played'),
   rate: byId('st-rate'),
   streak: byId('st-streak'),
   best: byId('st-best'),
   distribution: byId('distribution'),
-  countdown: byId('countdown'),
   shareBtn: byId('share-btn'),
   shareLabel: byId('share-label'),
   fallbackWrap: byId('share-fallback-wrap'),
   fallback: byId('share-fallback'),
 };
+const panels = [el.help, el.stats, el.giveup];
 
-let saved = { stats: normalizeStats(null), game: null, seenHelp: false };
+let saved = { stats: normalizeStats(null), game: null, recent: [], seenHelp: false };
 let game = null;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const motionOn = () => !reducedMotion.matches;
+const isOver = () => game.status !== 'playing';
 
 /* Saving */
 
@@ -85,8 +86,22 @@ function persist() {
 }
 
 function saveProgress() {
-  saved.game = { number: game.number, guesses: [...game.guesses] };
+  saved.game = {
+    id: game.id,
+    number: game.number,
+    answer: game.answer,
+    guesses: [...game.guesses],
+  };
   persist();
+}
+
+/** A saved game is usable only if it has an id, a known answer and real guesses. */
+function isRestorable(prior) {
+  return Boolean(prior)
+    && Number.isInteger(prior.id)
+    && answerSet.has(prior.answer)
+    && Array.isArray(prior.guesses)
+    && prior.guesses.every((g) => typeof g === 'string' && /^[a-z]{5}$/.test(g));
 }
 
 /* Board */
@@ -135,7 +150,7 @@ function replay(node, className) {
 
 function renderTyping(popIndex = -1) {
   const r = game.guesses.length;
-  if (r >= MAX_GUESSES) return;
+  if (r >= MAX_GUESSES || isOver()) return;
   tilesOf(r).forEach((tile, i) => {
     paintTile(tile, game.typed[i], null);
     if (i === popIndex && motionOn()) replay(tile, 'pop');
@@ -177,14 +192,12 @@ function buildKeyboard() {
       if (key === 'enter') {
         button.textContent = 'Enter';
         button.classList.add('wide');
-        button.setAttribute('aria-label', 'Submit guess');
       } else if (key === 'backspace') {
         button.innerHTML = BACKSPACE_ICON;
         button.classList.add('wide');
         button.setAttribute('aria-label', 'Delete letter');
       } else {
         button.textContent = key;
-        button.setAttribute('aria-label', key.toUpperCase());
       }
       row.append(button);
     }
@@ -196,6 +209,12 @@ function buildKeyboard() {
 function renderKeys() {
   for (const button of el.keyboard.querySelectorAll('[data-key]')) {
     const key = button.dataset.key;
+    if (key === 'enter') {
+      // Once a game ends, Enter starts the next one.
+      button.textContent = isOver() ? 'Next' : 'Enter';
+      button.setAttribute('aria-label', isOver() ? 'New word' : 'Submit guess');
+      continue;
+    }
     if (key.length !== 1) continue;
     const state = game.keys[key];
     if (state) {
@@ -208,10 +227,21 @@ function renderKeys() {
   }
 }
 
+/* Header */
+
+function renderHeader() {
+  el.gameNo.textContent = `Game ${game.number}`;
+  el.streakLine.textContent = `Streak ${saved.stats.streak}`;
+}
+
 /* Playing */
 
 function press(key) {
-  if (!game || game.status !== 'playing' || game.busy) return;
+  if (!game || game.busy) return;
+  if (isOver()) {
+    if (key === 'enter') newGame();
+    return;
+  }
   if (key === 'enter') {
     submit();
   } else if (key === 'backspace') {
@@ -251,20 +281,24 @@ async function submit() {
   saveProgress();
 
   await revealRow(r, guess, score);
-  if (game !== current) return; // A new day started while the tiles turned.
+  if (game !== current) return; // The player started a new word mid-reveal.
 
   current.keys = updateKeyStates(current.keys, guess, score);
-  renderKeys();
   current.status = gameStatus(current.guesses, current.answer);
   current.busy = false;
-  if (current.status !== 'playing') await finish(current);
+  renderKeys();
+  if (isOver()) await finish(current);
+}
+
+function record(current) {
+  saved.stats = recordResult(saved.stats, current.id, current.status === 'won', current.guesses.length);
+  persist();
+  renderHeader();
 }
 
 async function finish(current) {
-  const won = current.status === 'won';
-  saved.stats = recordResult(saved.stats, current.number, won, current.guesses.length);
-  persist();
-  if (won) {
+  record(current);
+  if (current.status === 'won') {
     toast(WIN_MESSAGES[current.guesses.length - 1]);
     await bounceRow(current.guesses.length - 1);
     await wait(500);
@@ -272,7 +306,15 @@ async function finish(current) {
     toast(`The word was ${current.answer.toUpperCase()}`, 3500);
     await wait(2200);
   }
-  if (game === current) openStats();
+  if (game === current && isOver()) openStats();
+}
+
+function giveUp() {
+  if (isOver()) return;
+  game.status = 'lost';
+  record(game);
+  toast(`The word was ${game.answer.toUpperCase()}`, 3500);
+  newGame();
 }
 
 function toast(message, ms = 1500) {
@@ -283,10 +325,62 @@ function toast(message, ms = 1500) {
   setTimeout(() => note.remove(), ms);
 }
 
+/* Games */
+
+/** Sets up a game: the saved one if it is still usable, otherwise a fresh word. */
+function startGame(prior) {
+  const restoring = isRestorable(prior);
+  const answer = restoring ? prior.answer : pickAnswer(ANSWERS, saved.recent);
+  game = {
+    id: restoring ? prior.id : Date.now(),
+    number: restoring && Number.isInteger(prior.number) ? prior.number : saved.stats.played + 1,
+    answer,
+    guesses: [],
+    scores: [],
+    typed: '',
+    keys: {},
+    status: 'playing',
+    busy: false,
+  };
+  if (!restoring) saved.recent = rememberAnswer(saved.recent, answer);
+
+  buildBoard();
+  if (restoring) {
+    for (const guess of prior.guesses.slice(0, MAX_GUESSES)) {
+      const score = scoreGuess(guess, answer);
+      game.guesses.push(guess);
+      game.scores.push(score);
+      game.keys = updateKeyStates(game.keys, guess, score);
+      paintRow(game.guesses.length - 1, guess, score);
+      if (guess === answer) break;
+    }
+  }
+  game.status = gameStatus(game.guesses, answer);
+  // Covers a reload that happened between the last guess and saving the stats.
+  if (isOver()) record(game);
+
+  saveProgress();
+  renderHeader();
+  renderKeys();
+  renderTyping();
+  return isOver();
+}
+
+function newGame() {
+  for (const panel of panels) if (panel.open) panel.close();
+  startGame(null);
+}
+
+function requestNewGame() {
+  if (game.busy) return;
+  if (isOver() || game.guesses.length === 0) newGame();
+  else openPanel(el.giveup);
+}
+
 /* Panels */
 
 function openPanel(dialog) {
-  for (const other of [el.help, el.stats]) {
+  for (const other of panels) {
     if (other !== dialog && other.open) other.close();
   }
   if (!dialog.open) dialog.showModal();
@@ -296,15 +390,16 @@ function renderStats() {
   const stats = saved.stats;
   el.played.textContent = stats.played;
   el.rate.textContent = `${winRate(stats)}%`;
-  el.streak.textContent = currentStreak(stats, game.number);
+  el.streak.textContent = stats.streak;
   el.best.textContent = stats.maxStreak;
 
   if (game.status === 'won') {
-    el.todayLine.textContent = `Solved in ${game.guesses.length} of ${MAX_GUESSES}.`;
+    el.resultLine.textContent = `Solved in ${game.guesses.length} of ${MAX_GUESSES}.`;
   } else if (game.status === 'lost') {
-    el.todayLine.textContent = `Today's word was ${game.answer.toUpperCase()}.`;
+    el.resultLine.textContent = `The word was ${game.answer.toUpperCase()}.`;
   } else {
-    el.todayLine.textContent = `Today's word is still waiting. You have ${MAX_GUESSES - game.guesses.length} guesses left.`;
+    const left = MAX_GUESSES - game.guesses.length;
+    el.resultLine.textContent = `Game in progress. You have ${left} ${left === 1 ? 'guess' : 'guesses'} left.`;
   }
 
   const most = Math.max(1, ...stats.distribution);
@@ -326,10 +421,9 @@ function renderStats() {
     return item;
   }));
 
-  el.shareBtn.hidden = game.status === 'playing';
+  el.shareBtn.hidden = !isOver();
   el.shareLabel.textContent = 'Share result';
   el.fallbackWrap.hidden = true;
-  updateCountdown();
 }
 
 function openStats() {
@@ -337,14 +431,10 @@ function openStats() {
   openPanel(el.stats);
 }
 
-function updateCountdown() {
-  el.countdown.textContent = formatCountdown(msUntilNextPuzzle());
-}
-
 async function share() {
   const framed = window.self !== window.top;
   const url = !framed && /^https?:$/.test(location.protocol) ? location.href.split('#')[0] : '';
-  const text = shareText(game.number, game.scores, game.status === 'won', url);
+  const text = shareText(game.scores, game.status === 'won', url);
 
   if (!framed && navigator.share) {
     try {
@@ -366,67 +456,20 @@ async function share() {
   }
 }
 
-/* Days */
-
-function renderHeader() {
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  el.number.textContent = `No. ${game.number}`;
-  el.date.dateTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  el.date.textContent = now.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-/** Sets up today's puzzle, restoring earlier guesses. Returns true if it is already over. */
-function startDay() {
-  const number = puzzleNumber();
-  game = {
-    number,
-    answer: answerFor(number, ANSWERS),
-    guesses: [],
-    scores: [],
-    typed: '',
-    keys: {},
-    status: 'playing',
-    busy: false,
-  };
-  buildBoard();
-  renderHeader();
-
-  const prior = saved.game;
-  if (prior && prior.number === number && Array.isArray(prior.guesses)) {
-    for (const guess of prior.guesses.slice(0, MAX_GUESSES)) {
-      if (typeof guess !== 'string' || !/^[a-z]{5}$/.test(guess)) break;
-      const score = scoreGuess(guess, game.answer);
-      game.guesses.push(guess);
-      game.scores.push(score);
-      game.keys = updateKeyStates(game.keys, guess, score);
-      paintRow(game.guesses.length - 1, guess, score);
-      if (guess === game.answer) break;
-    }
-  }
-  saveProgress();
-  renderKeys();
-  renderTyping();
-
-  game.status = gameStatus(game.guesses, game.answer);
-  if (game.status === 'playing') return false;
-  // Covers a reload that happened between the last guess and saving the stats.
-  saved.stats = recordResult(saved.stats, number, game.status === 'won', game.guesses.length);
-  persist();
-  return true;
-}
+/* Start */
 
 function start(data) {
   const stored = loadSaved();
   saved = {
     stats: normalizeStats(stored.stats),
     game: stored.game ?? null,
+    recent: Array.isArray(stored.recent) ? stored.recent.filter((w) => answerSet.has(w)) : [],
     seenHelp: stored.seenHelp === true,
   };
   if (data?.game) saved.game = data.game;
 
   buildKeyboard();
-  const finished = startDay();
+  const finished = startGame(saved.game);
   if (!saved.seenHelp) {
     saved.seenHelp = true;
     persist();
@@ -436,7 +479,7 @@ function start(data) {
   }
 
   try {
-    window.claude?.hot?.snapshot?.(() => ({ game: { number: game.number, guesses: [...game.guesses] } }));
+    window.claude?.hot?.snapshot?.(() => ({ game: saved.game }));
   } catch {
     // Live updates are only available inside the Claude viewer.
   }
@@ -461,25 +504,18 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+byId('new-btn').addEventListener('click', requestNewGame);
 byId('help-btn').addEventListener('click', () => openPanel(el.help));
 byId('stats-btn').addEventListener('click', openStats);
+byId('next-btn').addEventListener('click', requestNewGame);
+byId('giveup-btn').addEventListener('click', giveUp);
 el.shareBtn.addEventListener('click', share);
 
-for (const dialog of [el.help, el.stats]) {
+for (const dialog of panels) {
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog || event.target.closest('[data-close]')) dialog.close();
   });
 }
-
-setInterval(() => {
-  if (!game) return;
-  if (puzzleNumber() !== game.number && !game.busy) {
-    if (el.stats.open) el.stats.close();
-    startDay();
-    return;
-  }
-  if (el.stats.open) updateCountdown();
-}, 1000);
 
 const hot = window.claude?.hot;
 if (hot?.ready) hot.ready(start);

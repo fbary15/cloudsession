@@ -1,8 +1,8 @@
-// Word lists for Daily Word.
+// Word lists for Word Tiles.
 //
-// ANSWERS is the daily schedule: puzzle No. 1 uses ANSWERS[0], No. 2 uses
-// ANSWERS[1], and so on, wrapping around at the end. Changing the order or
-// inserting words shifts every future puzzle, so add new words at the end.
+// ANSWERS are the words a game can pick: common, everyday words, so nobody
+// loses to something obscure. Each game picks one at random, skipping words
+// that came up recently.
 //
 // VALID_WORDS lists every word accepted as a guess, separated by spaces. It is
 // the five-letter subset of an-array-of-english-words 2.0.0 by Zeke Sikelianos,

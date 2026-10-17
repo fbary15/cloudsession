@@ -22,6 +22,6 @@ test('the guess list is large and clean', () => {
   for (const word of valid) assert.match(word, /^[a-z]{5}$/, word);
 });
 
-test('there are at least two years of daily answers', () => {
+test('there are enough answers to rarely repeat', () => {
   assert.ok(ANSWERS.length >= 730, `only ${ANSWERS.length} answers`);
 });

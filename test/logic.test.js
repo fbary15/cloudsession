@@ -1,15 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  answerFor,
-  currentStreak,
   emptyStats,
-  formatCountdown,
   gameStatus,
-  msUntilNextPuzzle,
   normalizeStats,
-  puzzleNumber,
+  pickAnswer,
   recordResult,
+  rememberAnswer,
   scoreGuess,
   shareText,
   updateKeyStates,
@@ -52,24 +49,26 @@ test('gameStatus reports a win, a loss, or a game in progress', () => {
   assert.equal(gameStatus([...Array(5).fill('fluid'), 'crane'], 'crane'), 'won');
 });
 
-test('puzzleNumber starts at 1 on 16 October 2026 and counts local days', () => {
-  assert.equal(puzzleNumber(new Date(2026, 9, 16, 0, 0, 1)), 1);
-  assert.equal(puzzleNumber(new Date(2026, 9, 16, 23, 59, 59)), 1);
-  assert.equal(puzzleNumber(new Date(2026, 9, 17, 0, 0, 0)), 2);
-  // Daylight saving ends in late October in many zones; the count must not skip.
-  assert.equal(puzzleNumber(new Date(2026, 10, 1, 12)), 17);
-  assert.equal(puzzleNumber(new Date(2027, 9, 16, 12)), 366);
+test('pickAnswer skips words that came up recently', () => {
+  const list = ['alpha', 'bravo', 'charl', 'delta'];
+  const first = () => 0;
+  assert.equal(pickAnswer(list, [], first), 'alpha');
+  assert.equal(pickAnswer(list, ['alpha', 'bravo'], first), 'charl');
+  assert.equal(pickAnswer(list, ['alpha', 'bravo'], () => 0.99), 'delta');
 });
 
-test('answerFor walks the list in order and wraps around', () => {
-  const list = ['alpha', 'bravo', 'charl'];
-  assert.equal(answerFor(1, list), 'alpha');
-  assert.equal(answerFor(3, list), 'charl');
-  assert.equal(answerFor(4, list), 'alpha');
-  assert.equal(answerFor(0, list), 'charl');
+test('pickAnswer falls back to the whole list once every word is recent', () => {
+  const list = ['alpha', 'bravo'];
+  assert.equal(pickAnswer(list, ['alpha', 'bravo'], () => 0.6), 'bravo');
 });
 
-test('recordResult counts wins, losses and streaks', () => {
+test('rememberAnswer keeps the newest words and no repeats', () => {
+  assert.deepEqual(rememberAnswer(['a', 'b'], 'c', 3), ['a', 'b', 'c']);
+  assert.deepEqual(rememberAnswer(['a', 'b', 'c'], 'd', 3), ['b', 'c', 'd']);
+  assert.deepEqual(rememberAnswer(['a', 'b', 'c'], 'a', 3), ['b', 'c', 'a']);
+});
+
+test('recordResult counts wins, losses and wins in a row', () => {
   let stats = emptyStats();
   stats = recordResult(stats, 1, true, 3);
   stats = recordResult(stats, 2, true, 4);
@@ -81,24 +80,16 @@ test('recordResult counts wins, losses and streaks', () => {
   assert.equal(stats.streak, 0);
   assert.equal(stats.maxStreak, 2);
 
-  stats = recordResult(stats, 5, true, 2);
-  assert.equal(stats.streak, 1, 'a skipped day restarts the streak');
+  stats = recordResult(stats, 4, true, 2);
+  assert.equal(stats.streak, 1);
   assert.equal(stats.played, 4);
   assert.equal(stats.wins, 3);
   assert.equal(winRate(stats), 75);
 });
 
-test('recordResult ignores a second result for the same puzzle', () => {
+test('recordResult ignores a second result for the same game', () => {
   const once = recordResult(emptyStats(), 7, true, 4);
   assert.equal(recordResult(once, 7, true, 4), once);
-});
-
-test('currentStreak drops to zero once a day is missed', () => {
-  const stats = recordResult(recordResult(emptyStats(), 1, true, 3), 2, true, 3);
-  assert.equal(currentStreak(stats, 2), 2);
-  assert.equal(currentStreak(stats, 3), 2, 'today is not finished yet');
-  assert.equal(currentStreak(stats, 4), 0);
-  assert.equal(currentStreak(emptyStats(), 1), 0);
 });
 
 test('normalizeStats keeps good fields and repairs bad ones', () => {
@@ -111,17 +102,17 @@ test('normalizeStats keeps good fields and repairs bad ones', () => {
   assert.deepEqual(fixed.distribution, [0, 0, 0, 0, 0, 0]);
 });
 
-test('shareText shows the grid without revealing letters', () => {
-  const scores = [[A, P, A, A, C], [C, C, C, C, C]];
-  assert.equal(shareText(12, scores, true), 'Daily Word No. 12 2/6\n\n⬜🟨⬜⬜🟩\n🟩🟩🟩🟩🟩');
-  assert.match(shareText(12, scores, false), /^Daily Word No\. 12 X\/6/);
-  assert.match(shareText(12, scores, true, 'https://example.com/'), /\n\nhttps:\/\/example\.com\/$/);
+test('normalizeStats keeps stats saved by the daily version', () => {
+  const old = { played: 3, wins: 2, streak: 1, maxStreak: 2, lastWon: 2, lastPlayed: 3, distribution: [0, 1, 1, 0, 0, 0] };
+  const kept = normalizeStats(old);
+  assert.equal(kept.played, 3);
+  assert.equal(kept.maxStreak, 2);
+  assert.deepEqual(kept.distribution, [0, 1, 1, 0, 0, 0]);
 });
 
-test('countdown reaches the next local midnight', () => {
-  const now = new Date(2026, 9, 16, 23, 0, 0);
-  assert.equal(msUntilNextPuzzle(now), 60 * 60 * 1000);
-  assert.equal(formatCountdown(msUntilNextPuzzle(now)), '01:00:00');
-  assert.equal(formatCountdown(3_723_000), '01:02:03');
-  assert.equal(formatCountdown(-5), '00:00:00');
+test('shareText shows the grid without revealing letters', () => {
+  const scores = [[A, P, A, A, C], [C, C, C, C, C]];
+  assert.equal(shareText(scores, true), 'Word Tiles 2/6\n\n⬜🟨⬜⬜🟩\n🟩🟩🟩🟩🟩');
+  assert.match(shareText(scores, false), /^Word Tiles X\/6/);
+  assert.match(shareText(scores, true, 'https://example.com/'), /\n\nhttps:\/\/example\.com\/$/);
 });

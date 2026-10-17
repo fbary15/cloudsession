@@ -1,23 +1,26 @@
-// Pure game logic for Daily Word. Nothing here touches the page, so the same
+// Pure game logic for Word Tiles. Nothing here touches the page, so the same
 // code runs in the browser and in the Node test suite.
 
 export const WORD_LENGTH = 5;
 export const MAX_GUESSES = 6;
 
-// Puzzle No. 1 is 16 October 2026, counted in the player's own time zone.
-const FIRST_DAY_UTC = Date.UTC(2026, 9, 16);
-const DAY_MS = 24 * 60 * 60 * 1000;
+// How many recent answers to avoid when picking the next word.
+export const RECENT_LIMIT = 300;
 
-/** The puzzle number for the player's local calendar date. */
-export function puzzleNumber(date = new Date()) {
-  const localDay = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-  return Math.round((localDay - FIRST_DAY_UTC) / DAY_MS) + 1;
+/**
+ * Picks a random answer that has not come up recently. Once every word has
+ * been used recently, any word can come up again.
+ */
+export function pickAnswer(answers, recent = [], random = Math.random) {
+  const skip = new Set(recent);
+  const fresh = answers.filter((word) => !skip.has(word));
+  const pool = fresh.length > 0 ? fresh : answers;
+  return pool[Math.floor(random() * pool.length)];
 }
 
-/** The answer for a puzzle number, cycling through the list. */
-export function answerFor(number, answers) {
-  const count = answers.length;
-  return answers[(((number - 1) % count) + count) % count];
+/** Adds an answer to the recent list, keeping only the newest ones. */
+export function rememberAnswer(recent, answer, limit = RECENT_LIMIT) {
+  return [...recent.filter((word) => word !== answer), answer].slice(-limit);
 }
 
 /**
@@ -74,14 +77,12 @@ export function emptyStats() {
     wins: 0,
     streak: 0,
     maxStreak: 0,
-    lastWon: null,
     lastPlayed: null,
     distribution: Array(MAX_GUESSES).fill(0),
   };
 }
 
 const isCount = (value) => Number.isInteger(value) && value >= 0;
-const isDay = (value) => value === null || Number.isInteger(value);
 
 /** Repairs stats loaded from storage, dropping any field that looks wrong. */
 export function normalizeStats(raw) {
@@ -90,9 +91,7 @@ export function normalizeStats(raw) {
   for (const key of ['played', 'wins', 'streak', 'maxStreak']) {
     if (isCount(raw[key])) stats[key] = raw[key];
   }
-  for (const key of ['lastWon', 'lastPlayed']) {
-    if (isDay(raw[key])) stats[key] = raw[key];
-  }
+  if (Number.isInteger(raw.lastPlayed)) stats.lastPlayed = raw.lastPlayed;
   if (Array.isArray(raw.distribution) && raw.distribution.length === MAX_GUESSES
     && raw.distribution.every(isCount)) {
     stats.distribution = [...raw.distribution];
@@ -101,29 +100,24 @@ export function normalizeStats(raw) {
 }
 
 /**
- * Adds one finished puzzle to the stats. Recording the same puzzle twice
- * changes nothing, so a reload after the last guess cannot double count.
+ * Adds one finished game to the stats. The streak counts wins in a row.
+ * Recording the same game twice changes nothing, so a reload right after the
+ * last guess cannot double count.
  */
-export function recordResult(stats, number, won, guessCount) {
-  if (stats.lastPlayed === number) return stats;
+export function recordResult(stats, gameId, won, guessCount) {
+  if (stats.lastPlayed === gameId) return stats;
   const next = { ...stats, distribution: [...stats.distribution] };
   next.played += 1;
-  next.lastPlayed = number;
+  next.lastPlayed = gameId;
   if (won) {
     next.wins += 1;
-    next.streak = stats.lastWon === number - 1 ? stats.streak + 1 : 1;
+    next.streak = stats.streak + 1;
     next.maxStreak = Math.max(next.maxStreak, next.streak);
-    next.lastWon = number;
     next.distribution[guessCount - 1] += 1;
   } else {
     next.streak = 0;
   }
   return next;
-}
-
-/** The streak still counts if the last win was today or yesterday. */
-export function currentStreak(stats, today) {
-  return stats.lastWon !== null && stats.lastWon >= today - 1 ? stats.streak : 0;
 }
 
 export function winRate(stats) {
@@ -133,21 +127,9 @@ export function winRate(stats) {
 const SQUARES = { correct: '🟩', present: '🟨', absent: '⬜' };
 
 /** The spoiler-free result grid people paste into a chat. */
-export function shareText(number, scores, won, url = '') {
+export function shareText(scores, won, url = '') {
   const tally = won ? scores.length : 'X';
   const grid = scores.map((row) => row.map((s) => SQUARES[s]).join('')).join('\n');
-  const text = `Daily Word No. ${number} ${tally}/${MAX_GUESSES}\n\n${grid}`;
+  const text = `Word Tiles ${tally}/${MAX_GUESSES}\n\n${grid}`;
   return url ? `${text}\n\n${url}` : text;
-}
-
-/** Milliseconds until the next local midnight, when a new word arrives. */
-export function msUntilNextPuzzle(now = new Date()) {
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  return midnight.getTime() - now.getTime();
-}
-
-export function formatCountdown(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const parts = [Math.floor(total / 3600), Math.floor((total % 3600) / 60), total % 60];
-  return parts.map((n) => String(n).padStart(2, '0')).join(':');
 }

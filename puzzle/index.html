@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Daily Word</title>
+<title>Word Tiles</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Guess the five-letter word in six tries. A new word every day.">
+<meta name="description" content="Guess the five-letter word in six tries. Play as many words as you like.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,700..900&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
@@ -16,13 +16,16 @@
   <header class="masthead">
     <div class="brand">
       <h1 class="wordmark">
-        <span class="wm-daily">Daily</span>
         <span class="wm-tiles" aria-hidden="true"><span class="wm-tile is-correct">W</span><span class="wm-tile is-present">O</span><span class="wm-tile is-absent">R</span><span class="wm-tile is-correct">D</span></span>
-        <span class="visually-hidden">Word</span>
+        <span class="wm-text" aria-hidden="true">Tiles</span>
+        <span class="visually-hidden">Word Tiles</span>
       </h1>
-      <p class="edition"><span id="puzzle-no">No. 1</span> <span aria-hidden="true">·</span> <time id="puzzle-date"></time></p>
+      <p class="edition"><span id="game-no">Game 1</span> <span aria-hidden="true">·</span> <span id="streak-line">Streak 0</span></p>
     </div>
     <div class="tools">
+      <button type="button" class="icon-btn" id="new-btn" aria-label="New word">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 3.5v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
       <button type="button" class="icon-btn" id="help-btn" aria-label="How to play">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.1 1-1.1 1.8v.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17" r="1.1" fill="currentColor"/></svg>
       </button>
@@ -49,7 +52,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
     </div>
-    <p class="lede">Guess the five-letter word in six tries. A new word arrives every day at midnight.</p>
+    <p class="lede">Guess the five-letter word in six tries. When you finish, start a new word straight away.</p>
     <p>Each guess must be a real word. After you press Enter, the tiles change color to show how close you are.</p>
     <div class="example">
       <div class="mini-row" aria-hidden="true"><span class="tile" data-state="correct">s</span><span class="tile is-filled">h</span><span class="tile is-filled">i</span><span class="tile is-filled">n</span><span class="tile is-filled">e</span></div>
@@ -63,6 +66,7 @@
       <div class="mini-row" aria-hidden="true"><span class="tile is-filled">v</span><span class="tile is-filled">o</span><span class="tile" data-state="absent">i</span><span class="tile is-filled">c</span><span class="tile is-filled">e</span></div>
       <p><strong>I</strong> is not in the word at all.</p>
     </div>
+    <p class="hint">Stuck? The arrow button at the top gives up on this word and starts a new one.</p>
     <button type="button" class="primary" data-close>Start playing</button>
   </div>
 </dialog>
@@ -75,7 +79,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
     </div>
-    <p id="today-line" class="lede"></p>
+    <p id="result-line" class="lede"></p>
     <dl class="figures">
       <div><dt>Played</dt><dd id="st-played">0</dd></div>
       <div><dt>Win rate</dt><dd id="st-rate">0%</dd></div>
@@ -86,14 +90,25 @@
       <h3>Wins by number of guesses</h3>
       <ol id="distribution" class="distribution"></ol>
     </div>
-    <div class="sheet-foot">
-      <p class="next">Next word in <strong id="countdown">00:00:00</strong></p>
-      <button type="button" class="primary" id="share-btn" hidden><span id="share-label">Share result</span></button>
+    <div class="sheet-foot" id="result-actions">
+      <button type="button" class="secondary" id="share-btn"><span id="share-label">Share result</span></button>
+      <button type="button" class="primary" id="next-btn">New word</button>
     </div>
     <label class="fallback" id="share-fallback-wrap" hidden>
       <span>Copy your result from here:</span>
       <textarea id="share-fallback" rows="9" readonly></textarea>
     </label>
+  </div>
+</dialog>
+
+<dialog id="giveup" aria-labelledby="giveup-title">
+  <div class="sheet">
+    <h2 id="giveup-title" tabindex="-1" autofocus>Give up on this word?</h2>
+    <p>You'll see the answer, and it counts as a loss.</p>
+    <div class="sheet-actions">
+      <button type="button" class="secondary" data-close>Keep playing</button>
+      <button type="button" class="primary" id="giveup-btn">Give up</button>
+    </div>
   </div>
 </dialog>
 

@@ -8,26 +8,25 @@ keep going from your phone.
 
 | Project | Folder | Status |
 | --- | --- | --- |
-| Daily Word | `puzzle/` | Playable |
+| Word Tiles | `puzzle/` | Playable |
 | Workout Log | | Up next |
 | Spending Tracker | | Planned |
 | Morning Dashboard | | Planned |
 
 `index.html` at the root is a home page that links them all.
 
-### Daily Word
+### Word Tiles
 
-A daily five-letter word puzzle with six guesses. Everyone gets the same word
-on the same day, counted from puzzle No. 1 on 16 October 2026 in the player's
-own time zone.
+A five-letter word puzzle with six guesses. Play as many words as you like:
+each game picks a random common word and avoids ones you've had recently. The
+arrow button gives up on the current word and starts a new one.
 
-- `puzzle/logic.js` holds the rules: scoring, puzzle numbers, streaks and the
+- `puzzle/logic.js` holds the rules: scoring, picking words, streaks and the
   share text. It never touches the page, so it is fully tested.
 - `puzzle/game.js` draws the board and keyboard and saves progress in the
   browser.
-- `puzzle/words.js` holds the answer schedule and the list of accepted
-  guesses. Add new answers at the end of the list only, or future puzzles
-  shift.
+- `puzzle/words.js` holds the possible answers and the list of accepted
+  guesses.
 
 ## Playing it on your phone
 
