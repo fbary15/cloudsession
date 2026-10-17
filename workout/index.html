@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Workout Log</title>
+<meta name="description" content="Log sets and reps at the gym and chart your progress.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,600..900&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap masthead-inner">
+    <div class="brand">
+      <h1 class="wordmark">
+        <svg class="barbell" viewBox="0 0 44 20" aria-hidden="true">
+          <rect class="bar" x="1" y="9" width="42" height="2" rx="1"/>
+          <rect class="plate-red" x="7" y="2" width="4.5" height="16" rx="1"/>
+          <rect class="plate-blue" x="12.5" y="4" width="3.5" height="12" rx="1"/>
+          <rect class="plate-blue" x="28" y="4" width="3.5" height="12" rx="1"/>
+          <rect class="plate-red" x="32.5" y="2" width="4.5" height="16" rx="1"/>
+        </svg>
+        <span>Workout Log</span>
+      </h1>
+      <p class="edition" id="week-line">No workouts in the last 7 days</p>
+    </div>
+    <button type="button" class="icon-btn" id="settings-btn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="wrap views">
+  <section id="view-log" class="view" aria-label="Log"></section>
+  <section id="view-history" class="view" aria-label="History" hidden></section>
+  <section id="view-progress" class="view" aria-label="Progress" hidden></section>
+</main>
+
+<nav class="tabbar" aria-label="Sections">
+  <div class="wrap tabbar-inner">
+    <button type="button" class="tab" data-view="log" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>Log</span>
+    </button>
+    <button type="button" class="tab" data-view="history">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>History</span>
+    </button>
+    <button type="button" class="tab" data-view="progress">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m5 15 4.5-4.5 3.5 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Progress</span>
+    </button>
+  </div>
+</nav>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<dialog id="add-exercise" class="tall" aria-labelledby="add-title">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="add-title">Add exercise</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <label for="ex-search" class="visually-hidden">Search, or type a new exercise</label>
+    <input id="ex-search" class="field-input" type="search" placeholder="Search, or type a new one" autocomplete="off" enterkeyhint="done" autofocus>
+    <ul id="ex-list" class="ex-list"></ul>
+  </div>
+</dialog>
+
+<dialog id="finish" aria-labelledby="finish-title">
+  <div class="sheet">
+    <h2 id="finish-title" tabindex="-1" autofocus>Finish workout?</h2>
+    <p id="finish-summary"></p>
+    <div class="sheet-actions">
+      <button type="button" class="secondary" data-close>Keep going</button>
+      <button type="button" class="primary" id="finish-confirm">Finish</button>
+    </div>
+    <button type="button" class="text-btn danger" id="discard-btn">Discard this workout</button>
+  </div>
+</dialog>
+
+<dialog id="settings" aria-labelledby="settings-title">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="settings-title" tabindex="-1" autofocus>Settings</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <fieldset class="units">
+      <legend>Weight unit</legend>
+      <label><input type="radio" name="unit" value="kg" id="unit-kg"> Kilograms (kg)</label>
+      <label><input type="radio" name="unit" value="lb" id="unit-lb"> Pounds (lb)</label>
+    </fieldset>
+    <div class="backup">
+      <h3>Backup</h3>
+      <p>Your workouts are saved in this browser, on this phone only. Clearing your browser data deletes them, so keep a backup somewhere safe.</p>
+      <div class="sheet-actions">
+        <button type="button" class="secondary" id="copy-backup">Copy backup</button>
+        <button type="button" class="secondary" id="download-backup">Download file</button>
+      </div>
+      <label for="restore-text" class="field-label">Restore from a backup</label>
+      <textarea id="restore-text" class="field-input" rows="3" placeholder="Paste a backup here"></textarea>
+      <div class="sheet-actions">
+        <label class="secondary file-btn"><input type="file" id="restore-file" accept=".json,application/json,text/plain"> Choose file</label>
+        <button type="button" class="primary" id="restore-btn">Restore</button>
+      </div>
+      <p id="restore-msg" class="msg" role="status"></p>
+    </div>
+  </div>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

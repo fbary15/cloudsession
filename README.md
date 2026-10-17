@@ -9,8 +9,8 @@ keep going from your phone.
 | Project | Folder | Status |
 | --- | --- | --- |
 | Word Tiles | `puzzle/` | Playable |
-| Workout Log | | Up next |
-| Spending Tracker | | Planned |
+| Workout Log | `workout/` | Usable |
+| Spending Tracker | | Up next |
 | Morning Dashboard | | Planned |
 
 `index.html` at the root is a home page that links them all.
@@ -28,7 +28,28 @@ arrow button gives up on the current word and starts a new one.
 - `puzzle/words.js` holds the possible answers and the list of accepted
   guesses.
 
-## Playing it on your phone
+### Workout Log
+
+Log a workout set by set at the gym, then see your history and progress.
+
+- **Log**: start a workout, add exercises, and log each set with big steppers
+  for weight and reps. It shows what you did last time and marks any set that
+  beats your best ever.
+- **History**: every finished workout, newest first. Tap one to see every set.
+- **Progress**: per exercise, your best estimated one-rep max (e1RM) each
+  session as a chart, plus records and a table of sessions. Bodyweight
+  exercises chart reps instead.
+- **Settings**: kg or lb, and a backup you can copy, download or restore.
+
+Workouts are saved in the browser on your phone, with no account or server.
+Weights are stored in kilograms, so switching units never changes old data.
+
+- `workout/logic.js` holds the maths: unit conversion, e1RM (Epley formula),
+  best sets, records, and checking backups. It is fully tested.
+- `workout/chart.js` draws the progress chart as SVG.
+- `workout/app.js` draws the tabs and saves to the browser.
+
+## Publishing with GitHub Pages
 
 The site is plain HTML, CSS and JavaScript with no build step, so GitHub Pages
 can host it straight from this repository:
@@ -37,6 +58,8 @@ can host it straight from this repository:
 2. Under **Build and deployment**, set the source to **Deploy from a branch**.
 3. Pick the branch and the `/ (root)` folder, then save.
 4. After a minute the site is live at `https://fbary15.github.io/cloudsession/`.
+
+Pages is already turned on for this repository.
 
 Every push to that branch updates the live site.
 
@@ -48,7 +71,7 @@ npm test             # runs the tests with Node's built-in test runner
 npm run lint         # runs ESLint
 ```
 
-To try the site locally, serve the folder and open `/puzzle/`:
+To try the site locally, serve the folder and open `/puzzle/` or `/workout/`:
 
 ```sh
 python3 -m http.server 8000

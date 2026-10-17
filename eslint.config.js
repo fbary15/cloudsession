@@ -5,7 +5,7 @@ export default [
   { ignores: ['node_modules/', 'dist/'] },
   js.configs.recommended,
   {
-    files: ['puzzle/**/*.js'],
+    files: ['puzzle/**/*.js', 'workout/**/*.js'],
     languageOptions: { globals: globals.browser },
   },
   {
