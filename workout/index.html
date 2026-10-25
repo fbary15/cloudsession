@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Workout Log</title>
 <meta name="description" content="Log sets and reps at the gym and chart your progress.">
-<meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Workout">
@@ -14,26 +14,12 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,600..900&family=Atkinson+Hyperlegible:wght@400;700&display=swap" crossorigin>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="masthead">
   <div class="wrap masthead-inner">
-    <div class="brand">
-      <h1 class="wordmark">
-        <svg class="barbell" viewBox="0 0 44 20" aria-hidden="true">
-          <rect class="bar" x="1" y="9" width="42" height="2" rx="1"/>
-          <rect class="plate-red" x="7" y="2" width="4.5" height="16" rx="1"/>
-          <rect class="plate-blue" x="12.5" y="4" width="3.5" height="12" rx="1"/>
-          <rect class="plate-blue" x="28" y="4" width="3.5" height="12" rx="1"/>
-          <rect class="plate-red" x="32.5" y="2" width="4.5" height="16" rx="1"/>
-        </svg>
-        <span>Workout Log</span>
-      </h1>
-    </div>
+    <h1 class="wordmark">Workout Log</h1>
     <button type="button" class="icon-btn" id="settings-btn" aria-label="Settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     </button>
@@ -109,7 +95,7 @@
   <div class="grabber" aria-hidden="true"></div>
   <div class="sheet">
     <div class="sheet-head">
-      <h2 id="start-title" tabindex="-1" autofocus>What are you training?</h2>
+      <h2 id="start-title" tabindex="-1" autofocus>Start workout</h2>
       <button type="button" class="icon-btn" data-close aria-label="Close">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
@@ -157,7 +143,7 @@
     <div class="routines-info">
       <h3>Day routines</h3>
       <ul id="routine-summary" class="routine-summary"></ul>
-      <p>To change one, start it, adjust the exercises as you train, and tick "Save these exercises" when you finish.</p>
+      <p>To change one, start it, adjust the exercises, and tick "Save these exercises" when you finish.</p>
     </div>
     <div class="install">
       <h3>On your phone</h3>
@@ -167,7 +153,7 @@
     </div>
     <div class="backup">
       <h3>Backup</h3>
-      <p>Your workouts are saved in this browser, on this phone only. Clearing your browser data deletes them, so keep a backup somewhere safe.</p>
+      <p>Workouts are saved on this phone only. Clearing browser data deletes them, so keep a backup.</p>
       <div class="sheet-actions">
         <button type="button" class="secondary" id="copy-backup">Copy backup</button>
         <button type="button" class="secondary" id="download-backup">Download file</button>
