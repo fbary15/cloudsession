@@ -93,11 +93,48 @@
   <div class="sheet">
     <h2 id="finish-title" tabindex="-1" autofocus>Finish workout?</h2>
     <p id="finish-summary"></p>
+    <label class="check" id="routine-save" hidden>
+      <input type="checkbox" id="routine-save-box">
+      <span id="routine-save-text">Save these exercises as my routine</span>
+    </label>
     <div class="sheet-actions">
       <button type="button" class="secondary" data-close>Keep going</button>
       <button type="button" class="primary" id="finish-confirm">Finish</button>
     </div>
     <button type="button" class="text-btn danger" id="discard-btn">Discard this workout</button>
+  </div>
+</dialog>
+
+<dialog id="start-sheet" aria-labelledby="start-title">
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="start-title" tabindex="-1" autofocus>What are you training?</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div id="routine-list" class="routines"></div>
+  </div>
+</dialog>
+
+<dialog id="preview" aria-labelledby="preview-title">
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="preview-head">
+        <h2 id="preview-title" tabindex="-1" autofocus></h2>
+        <p id="preview-muscle" class="view-sub"></p>
+      </div>
+      <button type="button" class="icon-btn" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="frames">
+      <figure><img id="preview-0" alt="" width="440" height="293"><figcaption>Start</figcaption></figure>
+      <figure><img id="preview-1" alt="" width="440" height="293"><figcaption>End</figcaption></figure>
+    </div>
+    <button type="button" class="primary wide" id="preview-add">Add to workout</button>
   </div>
 </dialog>
 
@@ -117,6 +154,11 @@
         <label><input type="radio" name="unit" value="lb" id="unit-lb"><span>Pounds (lb)</span></label>
       </div>
     </fieldset>
+    <div class="routines-info">
+      <h3>Day routines</h3>
+      <ul id="routine-summary" class="routine-summary"></ul>
+      <p>To change one, start it, adjust the exercises as you train, and tick "Save these exercises" when you finish.</p>
+    </div>
     <div class="install">
       <h3>On your phone</h3>
       <p id="install-text"></p>

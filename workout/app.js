@@ -10,25 +10,30 @@ import {
   displayMax,
   emptyData,
   estimateMax,
+  exerciseInfo,
   finishWorkout,
   formatSet,
   fromDisplay,
   lastSets,
   nameKey,
-  newId,
   normalizeData,
   parseBackup,
   progressSeries,
   recentExerciseNames,
   recentRecords,
   records,
+  routineById,
+  routineChanged,
+  saveRoutineFrom,
   sessionsFor,
+  startWorkout as beginWorkout,
   suggestExercises,
   toDisplay,
   weekSummary,
   workoutSummary,
 } from './logic.js';
 import { drawLineChart } from './chart.js';
+import { exerciseImages } from './exercises.js';
 
 const STORAGE_KEY = 'workout-log:v1';
 const PICK_KEY = 'workout-log:progress-exercise';
@@ -36,17 +41,25 @@ const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M
 const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 const ICON_CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_TIMER = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 10v3.5l2.5 1.5M9.5 3.5h5M12 3.5v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const ICON_FORWARD = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.5 2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.9l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8Z" fill="currentColor"/></svg>';
 
 const byId = (id) => document.getElementById(id);
 const views = { log: byId('view-log'), history: byId('view-history'), progress: byId('view-progress') };
-const dialogs = { add: byId('add-exercise'), finish: byId('finish'), settings: byId('settings') };
+const dialogs = {
+  add: byId('add-exercise'),
+  finish: byId('finish'),
+  settings: byId('settings'),
+  start: byId('start-sheet'),
+  preview: byId('preview'),
+};
 
 let data = emptyData();
 let currentView = 'log';
 let stopChart = null;
 let warnedStorage = false;
 let restDismissed = 0; // The lastSetAt whose rest timer was tapped away.
+let previewName = ''; // The exercise shown in the picture preview.
 
 /* Saving */
 
@@ -100,6 +113,16 @@ const monthLabel = (t) => new Date(t).toLocaleDateString(undefined, { month: 'lo
 const timeLabel = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
+const initials = (name) => cleanName(name).split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+/** A small picture of an exercise that opens the preview, or its initials when we have no picture. */
+function thumb(name, attr = 'data-preview') {
+  const info = exerciseInfo(name);
+  if (!info) return h('span', { class: 'thumb thumb-blank', text: initials(name), 'aria-hidden': 'true' });
+  return h('button', { type: 'button', class: 'thumb', [attr]: name, 'aria-label': `Pictures of ${name}` },
+    h('img', { src: exerciseImages(info)[0], alt: '', width: 72, height: 48, loading: 'lazy' }));
+}
+
 const volumeNumber = (kg) => Math.round(toDisplay(kg, unit())).toLocaleString();
 const volumeLabel = (kg) => `${volumeNumber(kg)} ${unit()}`;
 
@@ -148,11 +171,12 @@ function renderLog() {
   const active = data.active;
   const cards = active.exercises.map((exercise, index) => exerciseCard(exercise, index));
   const resting = Number.isFinite(active.lastSetAt) && active.lastSetAt !== restDismissed;
+  const routine = routineById(data, active.routine);
   view.replaceChildren(
     h('div', { class: 'session' },
       h('div', { class: 'session-row' },
         h('div', {},
-          h('p', { class: 'eyebrow live' }, h('span', { class: 'dot' }), 'Workout in progress'),
+          h('p', { class: 'eyebrow live' }, h('span', { class: 'dot' }), routine ? `${routine.name} in progress` : 'Workout in progress'),
           h('p', { class: 'session-time' }, h('span', { id: 'elapsed', text: elapsedText() }), h('small', { text: ` · started ${timeLabel(active.startedAt)}` }))),
         h('button', { type: 'button', class: 'primary', 'data-action': 'finish', text: 'Finish' })),
       resting ? h('button', { type: 'button', class: 'rest', 'data-action': 'rest-dismiss', html: ICON_TIMER, title: 'Tap to hide' },
@@ -260,7 +284,7 @@ function exerciseCard(exercise, index) {
 
   return h('li', { class: 'exercise', 'data-index': index },
     h('div', { class: 'exercise-head' },
-      h('h3', { text: exercise.name }),
+      h('div', { class: 'exercise-title' }, thumb(exercise.name), h('h3', { text: exercise.name })),
       h('button', { type: 'button', class: 'text-btn subtle', 'data-action': 'remove-exercise', 'data-index': index, text: 'Remove' }),
     ),
     lastTime,
@@ -287,11 +311,57 @@ function exerciseCard(exercise, index) {
   );
 }
 
-function startWorkout() {
-  data.active = { id: newId(), startedAt: Date.now(), exercises: [] };
+/* Starting a workout */
+
+function openStart() {
+  const cards = data.routines.map((routine) => {
+    const pictures = routine.exercises.slice(0, 4).map((name) => {
+      const info = exerciseInfo(name);
+      return info
+        ? h('img', { src: exerciseImages(info)[0], alt: '', width: 64, height: 43, loading: 'lazy' })
+        : h('span', { class: 'thumb-blank', text: initials(name) });
+    });
+    return h('button', { type: 'button', class: 'routine', 'data-routine': routine.id },
+      h('span', { class: 'routine-thumbs' }, pictures),
+      h('span', { class: 'routine-main' },
+        h('span', { class: 'routine-name', text: routine.name }),
+        h('span', { class: 'routine-meta', text: `${plural(routine.exercises.length, 'exercise')} · ${routine.muscles}` }),
+        h('span', { class: 'routine-list', text: routine.exercises.join(', ') })),
+      h('span', { class: 'ex-add', html: ICON_FORWARD }));
+  });
+  cards.push(h('button', { type: 'button', class: 'routine routine-empty', 'data-routine': '' },
+    h('span', { class: 'routine-main' },
+      h('span', { class: 'routine-name', text: 'Empty workout' }),
+      h('span', { class: 'routine-meta', text: 'Pick exercises as you go.' })),
+    h('span', { class: 'ex-add', html: ICON_FORWARD })));
+  byId('routine-list').replaceChildren(...cards);
+  openDialog(dialogs.start);
+}
+
+function begin(routineId) {
+  data = beginWorkout(data, routineId || null);
   save();
+  dialogs.start.close();
   renderLog();
-  openAddExercise();
+  if (data.active.exercises.length) window.scrollTo({ top: 0 });
+  else openAddExercise();
+}
+
+/* Exercise pictures */
+
+function openPreview(name, canAdd) {
+  const info = exerciseInfo(name);
+  if (!info) return;
+  previewName = info.name;
+  const [start, end] = exerciseImages(info);
+  byId('preview-title').textContent = info.name;
+  byId('preview-muscle').textContent = info.muscle;
+  byId('preview-0').src = start;
+  byId('preview-1').src = end;
+  const inWorkout = data.active?.exercises.some((e) => nameKey(e.name) === nameKey(info.name));
+  byId('preview-add').hidden = !canAdd || !data.active || inWorkout;
+  // Opens on top of whatever sheet is showing, so closing it goes back there.
+  if (!dialogs.preview.open) dialogs.preview.showModal();
 }
 
 function stepInput(button) {
@@ -377,17 +447,26 @@ function openFinish() {
     ? "You haven't logged any sets, so there's nothing to save yet."
     : `${plural(summary.exerciseCount, 'exercise')} · ${plural(summary.setCount, 'set')} · ${minutesLabel(summary.minutes)}`;
   byId('finish-confirm').textContent = summary.setCount === 0 ? 'End workout' : 'Finish';
+  const routine = routineById(data, data.active.routine);
+  const changed = routine && routineChanged(data, data.active);
+  byId('routine-save').hidden = !changed;
+  byId('routine-save-box').checked = false;
+  if (changed) byId('routine-save-text').textContent = `Save these exercises as my ${routine.name}`;
   openDialog(dialogs.finish);
 }
 
 function finish() {
   const hadSets = data.active.exercises.some((e) => e.sets.length > 0);
   const bests = countBests(data.active);
+  const saveRoutine = !byId('routine-save').hidden && byId('routine-save-box').checked;
+  const routineName = routineById(data, data.active.routine)?.name;
+  if (saveRoutine) data = saveRoutineFrom(data, data.active);
   data = finishWorkout(data);
   save();
   dialogs.finish.close();
   renderAll();
   if (!hadSets) toast('Workout ended. Nothing was logged.');
+  else if (saveRoutine) toast(`Workout saved · ${routineName} updated`, 2400);
   else toast(bests ? `Workout saved · ${plural(bests, 'new best')}` : 'Workout saved');
 }
 
@@ -424,17 +503,22 @@ function renderSuggestions() {
   const exact = names.some((n) => nameKey(n) === nameKey(query))
     || inWorkout.some((n) => nameKey(n) === nameKey(query));
   if (query && !exact) {
-    items.push(h('li', {}, h('button', { type: 'button', 'data-name': query },
-      h('span', { class: 'is-new', text: `Add "${query}"` }),
-      h('span', { class: 'ex-meta', text: 'New exercise' }))));
+    items.push(h('li', { class: 'ex-row' },
+      h('span', { class: 'thumb thumb-blank', text: initials(query), 'aria-hidden': 'true' }),
+      h('button', { type: 'button', class: 'ex-main', 'data-name': query },
+        h('span', { class: 'ex-name is-new', text: `Add "${query}"` }),
+        h('span', { class: 'ex-meta', text: 'New exercise' }),
+        h('span', { class: 'ex-add', html: ICON_PLUS }))));
   }
   const item = (name) => {
     const sessions = recent.has(nameKey(name)) ? sessionsFor(data.workouts, name) : [];
-    const meta = sessions.length ? `Last ${shortDate(sessions[sessions.length - 1].t)}` : '';
-    return h('li', {}, h('button', { type: 'button', 'data-name': name },
-      h('span', { class: 'ex-name', text: name }),
-      meta ? h('span', { class: 'ex-meta', text: meta }) : null,
-      h('span', { class: 'ex-add', html: ICON_PLUS })));
+    const meta = sessions.length ? `Last ${shortDate(sessions[sessions.length - 1].t)}` : exerciseInfo(name)?.muscle ?? '';
+    return h('li', { class: 'ex-row' },
+      thumb(name),
+      h('button', { type: 'button', class: 'ex-main', 'data-name': name },
+        h('span', { class: 'ex-name', text: name }),
+        meta ? h('span', { class: 'ex-meta', text: meta }) : null,
+        h('span', { class: 'ex-add', html: ICON_PLUS })));
   };
   const own = names.filter((n) => recent.has(nameKey(n)));
   const common = names.filter((n) => !recent.has(nameKey(n))).slice(0, 40);
@@ -477,8 +561,8 @@ function workoutCard(workout, withDelete = true) {
         h('span', { class: 'wc-mon', text: date.toLocaleDateString(undefined, { month: 'short' }) })),
       h('div', { class: 'wc-body' },
         h('div', { class: 'wc-head' },
-          h('span', { class: 'wc-title', text: `${date.toLocaleDateString(undefined, { weekday: 'long' })} · ${timeLabel(workout.startedAt)}` }),
-          h('span', { class: 'wc-meta', text: minutesLabel(summary.minutes) })),
+          h('span', { class: 'wc-title', text: routineById(data, workout.routine)?.name ?? date.toLocaleDateString(undefined, { weekday: 'long' }) }),
+          h('span', { class: 'wc-meta', text: `${timeLabel(workout.startedAt)} · ${minutesLabel(summary.minutes)}` })),
         h('ul', { class: 'wc-lines' }, lines)),
       h('span', { class: 'wc-chev', html: ICON_CHEVRON })),
     h('div', { class: 'wc-detail' },
@@ -614,6 +698,9 @@ function openSettings() {
   byId('restore-text').value = '';
   setRestoreMessage('');
   renderInstall();
+  byId('routine-summary').replaceChildren(...data.routines.map((routine) => h('li', {},
+    h('strong', { text: routine.name }),
+    h('span', { text: routine.exercises.join(', ') }))));
   openDialog(dialogs.settings);
 }
 
@@ -742,10 +829,15 @@ function renderAll() {
 /* Wiring */
 
 views.log.addEventListener('click', (event) => {
+  const picture = event.target.closest('[data-preview]');
+  if (picture) {
+    openPreview(picture.dataset.preview, false);
+    return;
+  }
   const button = event.target.closest('[data-action]');
   if (!button) return;
   const action = button.dataset.action;
-  if (action === 'start') startWorkout();
+  if (action === 'start') openStart();
   else if (action === 'finish') openFinish();
   else if (action === 'add-exercise') openAddExercise();
   else if (action === 'step') stepInput(button);
@@ -780,8 +872,21 @@ byId('ex-search').addEventListener('keydown', (event) => {
   if (first) addExercise(first.dataset.name);
 });
 byId('ex-list').addEventListener('click', (event) => {
+  const picture = event.target.closest('[data-preview]');
+  if (picture) {
+    openPreview(picture.dataset.preview, true);
+    return;
+  }
   const button = event.target.closest('[data-name]');
   if (button) addExercise(button.dataset.name);
+});
+byId('routine-list').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-routine]');
+  if (button) begin(button.dataset.routine);
+});
+byId('preview-add').addEventListener('click', () => {
+  dialogs.preview.close();
+  addExercise(previewName);
 });
 
 byId('finish-confirm').addEventListener('click', finish);

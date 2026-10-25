@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  DEFAULT_EXERCISES,
   backupText,
   beatsRecord,
   bestSet,
@@ -8,6 +9,7 @@ import {
   displayMax,
   emptyData,
   estimateMax,
+  exerciseInfo,
   finishWorkout,
   formatSet,
   formatWeight,
@@ -20,7 +22,10 @@ import {
   recentExerciseNames,
   recentRecords,
   records,
+  routineChanged,
+  saveRoutineFrom,
   sessionsFor,
+  startWorkout,
   suggestExercises,
   toDisplay,
   weekSummary,
@@ -85,7 +90,55 @@ test('recent exercises come newest first, then suggestions fill in common ones',
   assert.deepEqual(all.slice(0, 2), ['bench  press', 'Pull-up']);
   assert.ok(!all.some((n) => n.toLowerCase() === 'squat'), 'skips exercises already in the workout');
   assert.ok(!all.includes('Bench press'), 'no duplicate of a logged name');
-  assert.deepEqual(suggestExercises('curl', []), ['Leg curl', 'Bicep curl', 'Hammer curl']);
+  assert.deepEqual(suggestExercises('curl', []), ['Barbell curl', 'Incline dumbbell curl', 'Cable curl', 'Hammer curl', 'Leg curl']);
+});
+
+test('the catalog gives every built-in exercise a picture and muscle group', () => {
+  for (const name of DEFAULT_EXERCISES) {
+    const info = exerciseInfo(name);
+    assert.ok(info && info.img && info.muscle, `${name} is in the catalog`);
+  }
+  assert.equal(exerciseInfo('  bench   PRESS ').img, 'bench-press');
+  assert.equal(exerciseInfo('Zumba'), null);
+});
+
+test('the default routines only use catalog exercises', () => {
+  const { routines } = emptyData();
+  assert.deepEqual(routines.map((r) => r.id), ['push', 'pull', 'legs']);
+  for (const routine of routines) {
+    assert.ok(routine.exercises.length >= 4, `${routine.name} has exercises`);
+    for (const name of routine.exercises) assert.ok(exerciseInfo(name), `${name} in ${routine.name} is in the catalog`);
+  }
+});
+
+test('startWorkout adds a routine\'s exercises, or none for an empty workout', () => {
+  const data = emptyData();
+  const pull = startWorkout(data, 'pull', T0);
+  assert.equal(pull.active.routine, 'pull');
+  assert.equal(pull.active.startedAt, T0);
+  assert.deepEqual(pull.active.exercises.map((e) => e.name), data.routines[1].exercises);
+  assert.ok(pull.active.exercises.every((e) => e.sets.length === 0));
+  const empty = startWorkout(data, null, T0);
+  assert.deepEqual(empty.active.exercises, []);
+  assert.equal('routine' in empty.active, false);
+  assert.equal('routine' in startWorkout(data, 'nope', T0).active, false);
+});
+
+test('a routine can be updated from what was actually done', () => {
+  const data = emptyData();
+  const push = data.routines[0];
+  const asPlanned = { routine: 'push', exercises: push.exercises.map((name) => ({ name, sets: sets([50, 8]) })) };
+  assert.equal(routineChanged(data, asPlanned), false);
+  const skipped = { routine: 'push', exercises: asPlanned.exercises.map((e, i) => (i === 2 ? { ...e, sets: [] } : e)) };
+  assert.equal(routineChanged(data, skipped), true);
+  const extra = { routine: 'push', exercises: [...asPlanned.exercises, { name: 'Dip', sets: sets([0, 10]) }] };
+  assert.equal(routineChanged(data, extra), true);
+  assert.equal(routineChanged(data, { exercises: asPlanned.exercises }), false, 'an empty workout has no routine');
+
+  const updated = saveRoutineFrom(data, extra);
+  assert.deepEqual(updated.routines[0].exercises, [...push.exercises, 'Dip']);
+  assert.deepEqual(updated.routines[1], data.routines[1], 'other routines untouched');
+  assert.equal(saveRoutineFrom(data, { routine: 'push', exercises: [] }), data, 'nothing done, nothing saved');
 });
 
 test('progressSeries plots e1RM per session, or reps for bodyweight work', () => {
@@ -177,6 +230,22 @@ test('normalizeData drops malformed sets, workouts and duplicates', () => {
   assert.deepEqual(data.workouts[0].exercises[0].sets, sets([60, 8]));
   assert.equal(data.active, null);
   assert.deepEqual(normalizeData(null), emptyData());
+});
+
+test('normalizeData keeps saved routines and a workout\'s routine', () => {
+  const data = normalizeData({
+    workouts: [{ ...history[1], routine: 'legs' }, { ...history[0], routine: 'bogus' }],
+    active: { id: 'x', startedAt: T0, routine: 'push', exercises: [] },
+    routines: [{ id: 'push', exercises: [' Dip ', '', 'Push-up'] }, { id: 'bogus', exercises: ['Nope'] }, { id: 'legs', exercises: [] }],
+  });
+  assert.deepEqual(data.routines.map((r) => r.id), ['push', 'pull', 'legs']);
+  assert.deepEqual(data.routines[0].exercises, ['Dip', 'Push-up']);
+  assert.deepEqual(data.routines[1].exercises, emptyData().routines[1].exercises, 'untouched routine keeps its default');
+  assert.deepEqual(data.routines[2].exercises, emptyData().routines[2].exercises, 'an emptied routine falls back to its default');
+  assert.equal(data.workouts.find((w) => w.id === 'b').routine, 'legs');
+  assert.equal('routine' in data.workouts.find((w) => w.id === 'a'), false, 'an unknown routine is dropped');
+  assert.equal(data.active.routine, 'push');
+  assert.deepEqual(normalizeData({ workouts: [] }).routines, emptyData().routines);
 });
 
 test('a backup round-trips and bad text gets a readable error', () => {
