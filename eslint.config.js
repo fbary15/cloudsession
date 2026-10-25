@@ -9,6 +9,10 @@ export default [
     languageOptions: { globals: globals.browser },
   },
   {
+    files: ['workout/sw.js'],
+    languageOptions: { globals: globals.serviceworker },
+  },
+  {
     files: ['test/**/*.js', 'scripts/**/*.mjs', 'eslint.config.js'],
     languageOptions: { globals: globals.node },
   },

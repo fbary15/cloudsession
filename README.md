@@ -9,7 +9,7 @@ keep going from your phone.
 | Project | Folder | Status |
 | --- | --- | --- |
 | Word Tiles | `puzzle/` | Playable |
-| Workout Log | `workout/` | Usable |
+| Workout Log | `workout/` | Installable |
 | Spending Tracker | | Up next |
 | Morning Dashboard | | Planned |
 
@@ -40,14 +40,28 @@ Log a workout set by set at the gym, then see your history and progress.
   session as a chart, plus records and a table of sessions. Bodyweight
   exercises chart reps instead.
 - **Settings**: kg or lb, and a backup you can copy, download or restore.
+- **On your phone**: it is a web app you can install. Open the live site on
+  your phone, then use **Install app** in Settings (Android), or Share, then
+  **Add to Home Screen** (iPhone). It then opens full screen from your home
+  screen with its own icon and works with no connection. When a new version is
+  published, the app offers a reload.
 
 Workouts are saved in the browser on your phone, with no account or server.
 Weights are stored in kilograms, so switching units never changes old data.
+The installed app has its own storage, separate from the browser tab, so
+install it before logging, or move workouts across with a backup.
 
 - `workout/logic.js` holds the maths: unit conversion, e1RM (Epley formula),
   best sets, records, and checking backups. It is fully tested.
 - `workout/chart.js` draws the progress chart as SVG.
 - `workout/app.js` draws the tabs and saves to the browser.
+- `workout/sw.js` is the service worker: it caches the app so it opens
+  offline, refreshes the files in the background and tells the page when a
+  newer version is ready.
+- `workout/manifest.webmanifest` and `workout/icons/` are what a phone needs
+  to install it. `node scripts/make-icons.mjs` redraws the icons from the
+  design in that script; it uses the Playwright that cloud sessions have
+  pre-installed, so the finished PNGs are committed.
 
 ## Publishing with GitHub Pages
 
@@ -76,6 +90,9 @@ To try the site locally, serve the folder and open `/puzzle/` or `/workout/`:
 ```sh
 python3 -m http.server 8000
 ```
+
+The workout app's service worker only runs over HTTPS or on `localhost`, so a
+local server like this one is enough to try installing it.
 
 `npm run build:artifact` writes a copy of the puzzle page to `dist/` in the
 shape a claude.ai artifact expects. That copy is not committed.

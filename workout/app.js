@@ -148,15 +148,16 @@ function renderLog() {
   const view = views.log;
   if (!data.active) {
     const last = data.workouts[data.workouts.length - 1];
-    view.replaceChildren(
+    view.replaceChildren(...[
       h('div', { class: 'start' },
         h('p', { class: 'eyebrow', text: dayLabel(Date.now()) }),
         h('h2', { text: last ? 'Ready for the next one?' : 'Log your first workout' }),
         h('p', { text: 'Start a workout, add exercises, and log each set as you go. Everything saves on this phone.' }),
         h('button', { type: 'button', class: 'primary', 'data-action': 'start', text: 'Start workout' }),
+        isStandalone() ? null : h('button', { type: 'button', class: 'text-btn', 'data-action': 'install-hint', text: 'Add to your home screen' }),
       ),
       last ? h('div', {}, h('h3', { class: 'section-title', text: 'Last workout' }), workoutCard(last, false)) : null,
-    );
+    ].filter(Boolean)); // replaceChildren would print a null as the word "null".
     return;
   }
 
@@ -534,6 +535,7 @@ function openSettings() {
   byId(`unit-${unit()}`).checked = true;
   byId('restore-text').value = '';
   setRestoreMessage('');
+  renderInstall();
   openDialog(dialogs.settings);
 }
 
@@ -585,6 +587,57 @@ function restore(button) {
   });
 }
 
+/* Install and offline */
+
+let installPrompt = null;
+let updateTimer = 0;
+
+/** True when opened from the home screen rather than in a browser tab. */
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+
+/** iPhones and iPads, where Safari has no install prompt, only the Share menu. */
+function isApplePhone() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function renderInstall() {
+  let text;
+  if (isStandalone()) {
+    text = 'Installed. It opens from your home screen and works with no connection.';
+  } else if (installPrompt) {
+    text = 'Put it on your home screen like any other app. It opens full screen and works with no connection.';
+  } else if (isApplePhone()) {
+    text = 'In Safari, tap Share, then "Add to Home Screen". It opens full screen and works with no connection.';
+  } else {
+    text = 'In your browser menu, choose "Install app" or "Add to Home Screen". It opens full screen and works with no connection.';
+  }
+  byId('install-text').textContent = text;
+  byId('install-btn').hidden = !installPrompt || isStandalone();
+  byId('install-note').hidden = isStandalone() || data.workouts.length === 0;
+}
+
+async function install() {
+  const prompt = installPrompt;
+  if (!prompt) return;
+  installPrompt = null; // The browser only lets a prompt be shown once.
+  try {
+    await prompt.prompt();
+  } catch {
+    // The browser declined to show its prompt; the hint text still helps.
+  }
+  renderInstall();
+}
+
+/** The service worker fetched a newer copy of the app. */
+function offerUpdate() {
+  clearTimeout(updateTimer);
+  // Files update one by one, so wait a moment and a reload gets all of them.
+  updateTimer = setTimeout(() => { byId('update').hidden = false; }, 1500);
+}
+
 /* Navigation */
 
 function show(view) {
@@ -622,6 +675,7 @@ views.log.addEventListener('click', (event) => {
   else if (action === 'add-set') addSet(Number(button.dataset.index));
   else if (action === 'remove-set') removeSet(Number(button.dataset.index), Number(button.dataset.set));
   else if (action === 'remove-exercise') removeExercise(button);
+  else if (action === 'install-hint') openSettings();
 });
 
 views.history.addEventListener('click', (event) => {
@@ -675,6 +729,31 @@ for (const radio of document.querySelectorAll('input[name="unit"]')) {
 for (const dialog of Object.values(dialogs)) {
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog || event.target.closest('[data-close]')) dialog.close();
+  });
+}
+
+byId('install-btn').addEventListener('click', install);
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  if (dialogs.settings.open) renderInstall();
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  if (dialogs.settings.open) renderInstall();
+  if (currentView === 'log') renderLog();
+  toast('Added to your home screen');
+});
+
+byId('update-btn').addEventListener('click', () => location.reload());
+byId('update-close').addEventListener('click', () => { byId('update').hidden = true; });
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {
+    // The app still works, just not offline.
+  });
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'updated') offerUpdate();
   });
 }
 

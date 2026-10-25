@@ -590,6 +590,46 @@ textarea.field-input { resize: vertical; font-family: ui-monospace, "SF Mono", M
 .msg:empty { display: none; }
 .msg.is-error { color: var(--danger); }
 
+/* Install */
+.start .text-btn { justify-self: start; padding-inline: 0; margin-top: -4px; }
+.install { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.install p { color: var(--muted); font-size: 0.9375rem; }
+.install .primary { justify-self: start; min-width: 12rem; }
+
+/* Update bar: a pill above the tab bar, with the toasts moved up out of its way */
+.update {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 16px);
+  transform: translateX(-50%);
+  z-index: 21;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 700;
+  box-shadow: 0 6px 20px var(--shadow);
+}
+.update-btn {
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+.update .icon-btn { width: 36px; height: 36px; color: var(--bg); }
+.update .icon-btn:hover { background: rgb(255 255 255 / 15%); }
+.update .icon-btn svg { width: 18px; height: 18px; }
+body:has(.update:not([hidden])) .toasts { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 72px); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
