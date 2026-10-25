@@ -48,7 +48,6 @@ const dialogs = {
   add: byId('add-exercise'),
   finish: byId('finish'),
   settings: byId('settings'),
-  start: byId('start-sheet'),
   preview: byId('preview'),
 };
 
@@ -106,6 +105,8 @@ function h(tag, props = {}, ...children) {
 
 const unit = () => data.unit;
 const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+const weekdayLabel = (t) => new Date(t).toLocaleDateString(undefined, { weekday: 'long' });
+const longDate = (t) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
 const shortDate = (t) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 const monthLabel = (t) => new Date(t).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 const timeLabel = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -184,37 +185,63 @@ function renderLog() {
     ),
     cards.length
       ? h('ol', { class: 'exercise-list' }, cards)
-      : h('div', { class: 'empty' }, h('strong', { text: 'No exercises yet.' })),
-    h('button', { type: 'button', class: `${cards.length ? 'secondary' : 'primary'} wide`, 'data-action': 'add-exercise', text: 'Add exercise' }),
+      : h('div', { class: 'empty group' }, h('strong', { text: 'No exercises yet.' })),
+    h('div', { class: 'group' }, h('button', { type: 'button', class: 'group-row', 'data-action': 'add-exercise' },
+      h('span', { class: 'thumb', html: ICON_PLUS }),
+      h('span', { class: 'row-main' }, h('span', { class: 'row-title', text: 'Add exercise' })))),
   );
 }
 
-/** The Log tab between workouts: start, this week, bests, last time. */
+/** The Log tab between workouts: start a day, this week, bests, last time. */
 function renderHome() {
   const view = views.log;
   const last = data.workouts[data.workouts.length - 1];
   const week = weekSummary(data.workouts);
   const bests = recentRecords(data.workouts, 3);
   const bestValue = (b) => (b.metric === 'reps' ? plural(b.set.reps, 'rep') : `${displayMax(estimateMax(b.set), unit())} ${unit()}`);
+  const stat = (value, label) => h('div', { class: 'stat' }, h('span', { class: 'stat-value' }, value), h('span', { class: 'stat-label', text: label }));
+
+  const routineRow = (routine) => {
+    const info = exerciseInfo(routine.exercises[0]);
+    return h('button', { type: 'button', class: 'group-row', 'data-routine': routine.id },
+      h('span', { class: 'thumb' }, info ? h('img', { src: exerciseImages(info)[0], alt: '', width: 76, height: 51 }) : null),
+      h('span', { class: 'row-main' },
+        h('span', { class: 'row-title', text: routine.name }),
+        h('span', { class: 'row-sub', text: routine.muscles })),
+      h('span', { class: 'row-chev', html: ICON_FORWARD }));
+  };
 
   view.replaceChildren(...[
-    h('div', { class: 'block' },
-      h('p', { class: 'date', text: dayLabel(Date.now()) }),
-      h('button', { type: 'button', class: 'primary wide', 'data-action': 'start', text: 'Start workout' }),
-      last ? null : h('p', { class: 'hint', text: 'Pick a day or start empty, add exercises, then log each set with its weight and reps. Everything stays on this phone.' })),
+    h('div', {},
+      h('h2', { class: 'view-title', text: weekdayLabel(Date.now()) }),
+      h('p', { class: 'view-sub', text: longDate(Date.now()) })),
+    h('section', { class: 'block' },
+      h('h2', { text: 'Start a workout' }),
+      h('div', { class: 'group' },
+        ...data.routines.map(routineRow),
+        h('button', { type: 'button', class: 'group-row', 'data-routine': '' },
+          h('span', { class: 'thumb', html: ICON_PLUS }),
+          h('span', { class: 'row-main' },
+            h('span', { class: 'row-title', text: 'Empty workout' }),
+            h('span', { class: 'row-sub', text: 'Add exercises as you go' })),
+          h('span', { class: 'row-chev', html: ICON_FORWARD })))),
     last ? h('section', { class: 'block' },
       h('h2', { text: 'Last 7 days' }),
-      h('p', { class: 'stats', text: `${plural(week.workouts, 'workout')} · ${plural(week.sets, 'set')} · ${volumeLabel(week.volumeKg)} lifted` })) : null,
+      h('div', { class: 'group stats3' },
+        stat(String(week.workouts), plural(week.workouts, 'workout').replace(/^\d+ /, '')),
+        stat(String(week.sets), plural(week.sets, 'set').replace(/^\d+ /, '')),
+        stat([volumeNumber(week.volumeKg), h('small', { text: ` ${unit()}` })], 'lifted'))) : null,
     bests.length ? h('section', { class: 'block' },
       h('h2', { text: 'Bests' }),
-      h('ul', { class: 'rows' }, bests.map((b) => h('li', { class: 'row' },
+      h('ul', { class: 'group rows' }, bests.map((b) => h('li', { class: 'group-row' },
         h('span', { class: 'row-main' },
           h('span', { class: 'row-title', text: b.name }),
           h('span', { class: 'row-sub', text: b.metric === 'reps' ? 'Most reps in a set' : `Est. max from ${formatSet(b.set, unit(), true)}` })),
         h('span', { class: 'row-end' },
           h('span', { class: 'row-value', text: bestValue(b) }),
           h('span', { class: 'row-sub', text: shortDate(b.t) })))))) : null,
-    last ? h('section', { class: 'block' }, h('h2', { text: 'Last workout' }), workoutCard(last, false)) : null,
+    last ? h('section', { class: 'block' }, h('h2', { text: 'Last workout' }), h('div', { class: 'group' }, workoutCard(last, false))) : null,
+    last ? null : h('p', { class: 'hint', text: 'After your first workout, this week\'s totals, your bests and your last session show up here.' }),
     isStandalone() ? null : h('p', { class: 'hint' }, h('button', { type: 'button', class: 'text-btn subtle', 'data-action': 'install-hint', text: 'Add to your home screen' })),
   ].filter(Boolean)); // replaceChildren would print a null as the word "null".
 }
@@ -263,7 +290,7 @@ function exerciseCard(exercise, index) {
       })))
     : h('p', { class: 'last-time first', text: 'First time logging this one.' });
 
-  return h('li', { class: 'exercise', 'data-index': index },
+  return h('li', { class: 'exercise group', 'data-index': index },
     h('div', { class: 'exercise-head' },
       h('div', { class: 'exercise-title' }, thumb(exercise.name), h('h3', { text: exercise.name })),
       h('button', { type: 'button', class: 'text-btn subtle', 'data-action': 'remove-exercise', 'data-index': index, text: 'Remove' }),
@@ -294,35 +321,9 @@ function exerciseCard(exercise, index) {
 
 /* Starting a workout */
 
-function openStart() {
-  const cards = data.routines.map((routine) => {
-    const pictures = routine.exercises.slice(0, 1).map((name) => {
-      const info = exerciseInfo(name);
-      return info
-        ? h('img', { src: exerciseImages(info)[0], alt: '', width: 64, height: 43, loading: 'lazy' })
-        : h('span', { class: 'thumb-blank', text: initials(name) });
-    });
-    return h('button', { type: 'button', class: 'routine', 'data-routine': routine.id },
-      h('span', { class: 'routine-thumbs' }, pictures),
-      h('span', { class: 'routine-main' },
-        h('span', { class: 'routine-name', text: routine.name }),
-        h('span', { class: 'routine-meta', text: `${plural(routine.exercises.length, 'exercise')} · ${routine.muscles}` }),
-        h('span', { class: 'routine-list', text: routine.exercises.join(', ') })),
-      h('span', { class: 'ex-add', html: ICON_FORWARD }));
-  });
-  cards.push(h('button', { type: 'button', class: 'routine routine-empty', 'data-routine': '' },
-    h('span', { class: 'routine-main' },
-      h('span', { class: 'routine-name', text: 'Empty workout' }),
-      h('span', { class: 'routine-meta', text: 'Add exercises as you go.' })),
-    h('span', { class: 'ex-add', html: ICON_FORWARD })));
-  byId('routine-list').replaceChildren(...cards);
-  openDialog(dialogs.start);
-}
-
 function begin(routineId) {
   data = beginWorkout(data, routineId || null);
   save();
-  dialogs.start.close();
   renderLog();
   if (data.active.exercises.length) window.scrollTo({ top: 0 });
   else openAddExercise();
@@ -570,7 +571,7 @@ function renderHistory() {
   }
   view.replaceChildren(header, ...[...groups].map(([month, workouts]) => h('section', {},
     h('h3', { class: 'section-title month', text: month }),
-    h('ol', { class: 'workout-list' }, workouts.map((w) => h('li', {}, workoutCard(w)))))));
+    h('ol', { class: 'workout-list' }, workouts.map((w) => h('li', { class: 'group' }, workoutCard(w)))))));
 }
 
 function deleteWorkout(button) {
@@ -636,8 +637,8 @@ function renderProgress() {
     h('div', { class: 'picker' },
       h('label', { class: 'field-label', for: 'exercise-pick', text: 'Exercise' }),
       h('div', { class: 'select' }, select, h('span', { class: 'select-chev', html: ICON_CHEVRON }))),
-    h('div', { class: 'tiles' }, tiles),
-    h('figure', { class: 'chart-card' },
+    h('div', { class: 'tiles group' }, tiles),
+    h('figure', { class: 'chart-card group' },
       h('figcaption', {},
         h('h3', { text: byReps ? 'Most reps per session' : 'Estimated max per session' }),
         h('p', { text: byReps
@@ -646,7 +647,7 @@ function renderProgress() {
       chartHost),
     h('section', {},
       h('h3', { class: 'section-title', text: 'Sessions' }),
-      h('div', { class: 'table-wrap card' },
+      h('div', { class: 'table-wrap group' },
         h('table', { class: 'sessions' },
           h('thead', {}, h('tr', {},
             h('th', { scope: 'col', text: 'Date' }),
@@ -811,11 +812,15 @@ views.log.addEventListener('click', (event) => {
     openPreview(picture.dataset.preview, false);
     return;
   }
+  const routine = event.target.closest('[data-routine]');
+  if (routine) {
+    begin(routine.dataset.routine);
+    return;
+  }
   const button = event.target.closest('[data-action]');
   if (!button) return;
   const action = button.dataset.action;
-  if (action === 'start') openStart();
-  else if (action === 'finish') openFinish();
+  if (action === 'finish') openFinish();
   else if (action === 'add-exercise') openAddExercise();
   else if (action === 'step') stepInput(button);
   else if (action === 'add-set') addSet(Number(button.dataset.index));
@@ -856,10 +861,6 @@ byId('ex-list').addEventListener('click', (event) => {
   }
   const button = event.target.closest('[data-name]');
   if (button) addExercise(button.dataset.name);
-});
-byId('routine-list').addEventListener('click', (event) => {
-  const button = event.target.closest('[data-routine]');
-  if (button) begin(button.dataset.routine);
 });
 byId('preview-add').addEventListener('click', () => {
   dialogs.preview.close();
