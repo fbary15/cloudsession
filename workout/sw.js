@@ -101,7 +101,6 @@ const SHELL = [
   './img/hip-thrust-0.jpg',
   './img/hip-thrust-1.jpg',
 ];
-const FONT_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -126,24 +125,19 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET') return;
-  const url = new URL(request.url);
-  if (url.origin === self.location.origin) {
-    event.respondWith(respond(event, true));
-  } else if (FONT_HOSTS.has(url.hostname)) {
-    event.respondWith(respond(event, false));
-  }
+  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+  event.respondWith(respond(event));
 });
 
 /** Cached copy first, refreshed in the background; network when there is none. */
-async function respond(event, ownFile) {
+async function respond(event) {
   const { request } = event;
   const cache = await caches.open(CACHE);
   const cached = await cache.match(request);
-  const refresh = refreshCache(cache, request, cached?.clone(), ownFile);
+  const refresh = refreshCache(cache, request, cached?.clone());
   if (cached) {
     event.waitUntil(refresh);
-    return ownFile && request.mode !== 'navigate' ? uncacheable(cached) : cached;
+    return request.mode !== 'navigate' ? uncacheable(cached) : cached;
   }
   return (await refresh) ?? fallback(cache, request);
 }
@@ -161,19 +155,18 @@ function uncacheable(response) {
 }
 
 /** Fetches the latest copy and stores it. Null when the network is down. */
-async function refreshCache(cache, request, cached, ownFile) {
+async function refreshCache(cache, request, cached) {
   let response;
   try {
-    // Our own files are checked against the server (a cheap 304 when nothing
-    // changed). Fonts keep their original cross-origin request so the reply
-    // stays readable and cacheable.
-    response = ownFile ? await fetch(request.url, { cache: 'no-cache' }) : await fetch(request);
+    // Checked against the server (a cheap 304 when nothing changed) rather
+    // than trusting the browser's HTTP cache.
+    response = await fetch(request.url, { cache: 'no-cache' });
   } catch {
     return null;
   }
   if (!response.ok) return response;
   await cache.put(request, response.clone());
-  if (ownFile && cached && await differs(cached, response.clone())) await announceUpdate();
+  if (cached && await differs(cached, response.clone())) await announceUpdate();
   return response;
 }
 

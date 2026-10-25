@@ -40,9 +40,7 @@ const PICK_KEY = 'workout-log:progress-exercise';
 const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 const ICON_CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const ICON_TIMER = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 10v3.5l2.5 1.5M9.5 3.5h5M12 3.5v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 const ICON_FORWARD = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const ICON_STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.5 2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.9l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8Z" fill="currentColor"/></svg>';
 
 const byId = (id) => document.getElementById(id);
 const views = { log: byId('view-log'), history: byId('view-history'), progress: byId('view-progress') };
@@ -176,65 +174,48 @@ function renderLog() {
     h('div', { class: 'session' },
       h('div', { class: 'session-row' },
         h('div', {},
-          h('p', { class: 'eyebrow live' }, h('span', { class: 'dot' }), routine ? `${routine.name} in progress` : 'Workout in progress'),
-          h('p', { class: 'session-time' }, h('span', { id: 'elapsed', text: elapsedText() }), h('small', { text: ` · started ${timeLabel(active.startedAt)}` }))),
+          h('h2', { class: 'session-name', text: routine ? routine.name : 'Workout' }),
+          h('p', { class: 'session-time' }, h('span', { id: 'elapsed', text: elapsedText() }), ` · started ${timeLabel(active.startedAt)}`)),
         h('button', { type: 'button', class: 'primary', 'data-action': 'finish', text: 'Finish' })),
-      resting ? h('button', { type: 'button', class: 'rest', 'data-action': 'rest-dismiss', html: ICON_TIMER, title: 'Tap to hide' },
-        h('span', { text: 'Rest since your last set' }),
-        h('span', { class: 'rest-time', id: 'rest-time', text: restText() })) : null,
+      resting ? h('button', { type: 'button', class: 'rest', 'data-action': 'rest-dismiss' },
+        h('span', { text: 'Rest' }),
+        h('span', { class: 'rest-time', id: 'rest-time', text: restText() }),
+        h('span', { class: 'rest-hint', text: 'tap to hide' })) : null,
     ),
     cards.length
       ? h('ol', { class: 'exercise-list' }, cards)
-      : h('div', { class: 'empty' },
-        h('strong', { text: 'Add your first exercise' }),
-        h('span', { text: 'Pick from your usual exercises or type a new one.' })),
-    cards.length
-      ? h('button', { type: 'button', class: 'add-ex', 'data-action': 'add-exercise', html: ICON_PLUS }, 'Add exercise')
-      : h('button', { type: 'button', class: 'primary wide', 'data-action': 'add-exercise', text: 'Add exercise' }),
+      : h('div', { class: 'empty' }, h('strong', { text: 'No exercises yet.' })),
+    h('button', { type: 'button', class: `${cards.length ? 'secondary' : 'primary'} wide`, 'data-action': 'add-exercise', text: 'Add exercise' }),
   );
 }
 
-/** The Log tab between workouts: this week at a glance, recent bests, last time. */
+/** The Log tab between workouts: start, this week, bests, last time. */
 function renderHome() {
   const view = views.log;
   const last = data.workouts[data.workouts.length - 1];
   const week = weekSummary(data.workouts);
   const bests = recentRecords(data.workouts, 3);
-  const stat = (value, label) => h('div', { class: 'hstat' },
-    h('span', { class: 'hstat-value' }, value),
-    h('span', { class: 'hstat-label', text: label }));
   const bestValue = (b) => (b.metric === 'reps' ? plural(b.set.reps, 'rep') : `${displayMax(estimateMax(b.set), unit())} ${unit()}`);
 
   view.replaceChildren(...[
-    h('section', { class: 'hero', 'aria-label': 'Start a workout' },
-      h('p', { class: 'hero-date', text: dayLabel(Date.now()) }),
-      h('h2', { text: last ? 'Ready for the next one?' : 'Log your first workout' }),
-      last ? h('p', { class: 'hero-kicker', text: 'Last 7 days' }) : null,
-      last
-        ? h('div', { class: 'hero-stats' },
-          stat(String(week.workouts), plural(week.workouts, 'workout').replace(/^\d+ /, '')),
-          stat(String(week.sets), plural(week.sets, 'set').replace(/^\d+ /, '')),
-          stat(volumeNumber(week.volumeKg), `${unit()} lifted`))
-        : h('p', { class: 'hero-sub', text: 'Add exercises and log each set as you go. Everything stays on this phone.' }),
-      h('button', { type: 'button', class: 'hero-cta', 'data-action': 'start', html: ICON_PLUS }, 'Start workout'),
-      isStandalone() ? null : h('button', { type: 'button', class: 'text-btn', 'data-action': 'install-hint', text: 'Add to your home screen' }),
-    ),
-    last ? null : h('ol', { class: 'steps', 'aria-label': 'How it works' },
-      h('li', {}, h('div', {}, h('strong', { text: 'Start a workout' }), h('span', { text: 'One tap and the clock is running.' }))),
-      h('li', {}, h('div', {}, h('strong', { text: 'Add your exercises' }), h('span', { text: 'Pick from the list or type your own.' }))),
-      h('li', {}, h('div', {}, h('strong', { text: 'Log every set' }), h('span', { text: 'Weight and reps. Next time you see what you did and can beat it.' }))),
-    ),
-    bests.length ? h('section', {},
-      h('h3', { class: 'section-title', text: 'Recent bests' }),
-      h('ul', { class: 'bests' }, bests.map((b) => h('li', { class: 'best' },
-        h('span', { class: 'best-icon', html: ICON_STAR }),
-        h('span', { class: 'best-main' },
-          h('span', { class: 'best-name', text: b.name }),
-          h('span', { class: 'best-sub', text: b.metric === 'reps' ? 'Most reps in a set' : `Est. max from ${formatSet(b.set, unit(), true)}` })),
-        h('span', { class: 'best-value' },
-          h('span', { text: bestValue(b) }),
-          h('span', { class: 'best-date', text: shortDate(b.t) })))))) : null,
-    last ? h('section', {}, h('h3', { class: 'section-title', text: 'Last workout' }), workoutCard(last, false)) : null,
+    h('div', { class: 'block' },
+      h('p', { class: 'date', text: dayLabel(Date.now()) }),
+      h('button', { type: 'button', class: 'primary wide', 'data-action': 'start', text: 'Start workout' }),
+      last ? null : h('p', { class: 'hint', text: 'Pick a day or start empty, add exercises, then log each set with its weight and reps. Everything stays on this phone.' })),
+    last ? h('section', { class: 'block' },
+      h('h2', { text: 'Last 7 days' }),
+      h('p', { class: 'stats', text: `${plural(week.workouts, 'workout')} · ${plural(week.sets, 'set')} · ${volumeLabel(week.volumeKg)} lifted` })) : null,
+    bests.length ? h('section', { class: 'block' },
+      h('h2', { text: 'Bests' }),
+      h('ul', { class: 'rows' }, bests.map((b) => h('li', { class: 'row' },
+        h('span', { class: 'row-main' },
+          h('span', { class: 'row-title', text: b.name }),
+          h('span', { class: 'row-sub', text: b.metric === 'reps' ? 'Most reps in a set' : `Est. max from ${formatSet(b.set, unit(), true)}` })),
+        h('span', { class: 'row-end' },
+          h('span', { class: 'row-value', text: bestValue(b) }),
+          h('span', { class: 'row-sub', text: shortDate(b.t) })))))) : null,
+    last ? h('section', { class: 'block' }, h('h2', { text: 'Last workout' }), workoutCard(last, false)) : null,
+    isStandalone() ? null : h('p', { class: 'hint' }, h('button', { type: 'button', class: 'text-btn subtle', 'data-action': 'install-hint', text: 'Add to your home screen' })),
   ].filter(Boolean)); // replaceChildren would print a null as the word "null".
 }
 
@@ -259,7 +240,7 @@ function exerciseCard(exercise, index) {
       set.kg > 0 ? `${toDisplay(set.kg, unit())} ` : 'BW ',
       set.kg > 0 ? h('span', { class: 'set-unit', text: `${unit()} ` }) : null,
       `× ${set.reps}`),
-    h('span', {}, beatsRecord(data.workouts, exercise.name, set) ? h('span', { class: 'badge', text: 'Best ever' }) : null),
+    h('span', {}, beatsRecord(data.workouts, exercise.name, set) ? h('span', { class: 'badge', text: 'PR' }) : null),
     h('button', {
       type: 'button',
       class: 'icon-btn',
@@ -275,7 +256,7 @@ function exerciseCard(exercise, index) {
   const repsId = `reps-${index}`;
   const lastTime = before.length
     ? h('div', { class: 'last-time' },
-      h('span', { class: 'last-label', text: before.some((s) => s.kg > 0) ? `Last time · ${unit()}` : 'Last time' }),
+      h('span', { class: 'last-label', text: before.some((s) => s.kg > 0) ? `Last time (${unit()})` : 'Last time' }),
       before.map((s) => h('button', {
         type: 'button', class: 'chip', 'data-action': 'fill', 'data-index': index, 'data-kg': s.kg, 'data-reps': s.reps,
         title: 'Use these numbers', text: formatSet(s, unit()),
@@ -306,7 +287,7 @@ function exerciseCard(exercise, index) {
           h('button', { type: 'button', 'data-action': 'step', 'data-target': repsId, 'data-dir': 1, 'aria-label': 'More reps', text: '+' }),
         ),
       ),
-      h('button', { type: 'button', class: 'primary', 'data-action': 'add-set', 'data-index': index, text: `Add set ${exercise.sets.length + 1}` }),
+      h('button', { type: 'button', class: 'secondary', 'data-action': 'add-set', 'data-index': index, text: `Add set ${exercise.sets.length + 1}` }),
     ),
   );
 }
@@ -315,7 +296,7 @@ function exerciseCard(exercise, index) {
 
 function openStart() {
   const cards = data.routines.map((routine) => {
-    const pictures = routine.exercises.slice(0, 4).map((name) => {
+    const pictures = routine.exercises.slice(0, 1).map((name) => {
       const info = exerciseInfo(name);
       return info
         ? h('img', { src: exerciseImages(info)[0], alt: '', width: 64, height: 43, loading: 'lazy' })
@@ -332,7 +313,7 @@ function openStart() {
   cards.push(h('button', { type: 'button', class: 'routine routine-empty', 'data-routine': '' },
     h('span', { class: 'routine-main' },
       h('span', { class: 'routine-name', text: 'Empty workout' }),
-      h('span', { class: 'routine-meta', text: 'Pick exercises as you go.' })),
+      h('span', { class: 'routine-meta', text: 'Add exercises as you go.' })),
     h('span', { class: 'ex-add', html: ICON_FORWARD })));
   byId('routine-list').replaceChildren(...cards);
   openDialog(dialogs.start);
@@ -542,7 +523,6 @@ function addExercise(name) {
 
 function workoutCard(workout, withDelete = true) {
   const summary = workoutSummary(workout);
-  const date = new Date(workout.startedAt);
   const lines = workout.exercises.map((exercise) => {
     const byReps = !exercise.sets.some((s) => s.kg > 0);
     const top = bestSet(exercise.sets, byReps);
@@ -556,12 +536,9 @@ function workoutCard(workout, withDelete = true) {
 
   return h('details', { class: 'workout-card' },
     h('summary', {},
-      h('span', { class: 'wc-date' },
-        h('span', { class: 'wc-day', text: String(date.getDate()) }),
-        h('span', { class: 'wc-mon', text: date.toLocaleDateString(undefined, { month: 'short' }) })),
       h('div', { class: 'wc-body' },
         h('div', { class: 'wc-head' },
-          h('span', { class: 'wc-title', text: routineById(data, workout.routine)?.name ?? date.toLocaleDateString(undefined, { weekday: 'long' }) }),
+          h('span', { class: 'wc-title', text: [dayLabel(workout.startedAt), routineById(data, workout.routine)?.name].filter(Boolean).join(' · ') }),
           h('span', { class: 'wc-meta', text: `${timeLabel(workout.startedAt)} · ${minutesLabel(summary.minutes)}` })),
         h('ul', { class: 'wc-lines' }, lines)),
       h('span', { class: 'wc-chev', html: ICON_CHEVRON })),
@@ -581,8 +558,8 @@ function renderHistory() {
     h('p', { class: 'view-sub', text: data.workouts.length ? plural(data.workouts.length, 'workout') + ' logged' : 'Nothing logged yet' }));
   if (!data.workouts.length) {
     view.replaceChildren(header, h('div', { class: 'empty' },
-      h('strong', { text: 'Your finished workouts show up here' }),
-      h('span', { text: 'Start one from the Log tab. Tap a workout later to see every set.' })));
+      h('strong', { text: 'No workouts yet.' }),
+      h('span', { text: 'Finished workouts are listed here, newest first.' })));
     return;
   }
   const groups = new Map();
@@ -615,8 +592,8 @@ function renderProgress() {
   const header = h('div', {}, h('h2', { class: 'view-title', text: 'Progress' }));
   if (!names.length) {
     view.replaceChildren(header, h('div', { class: 'empty' },
-      h('strong', { text: 'Your progress charts live here' }),
-      h('span', { text: 'Finish a workout and each exercise gets its own chart and records.' })));
+      h('strong', { text: 'Nothing to chart yet.' }),
+      h('span', { text: 'Finish a workout and each exercise gets a chart and records here.' })));
     return;
   }
 
