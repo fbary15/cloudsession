@@ -213,6 +213,35 @@ export function workoutsInLastWeek(workouts, now = Date.now()) {
   return workouts.filter((w) => w.startedAt >= since).length;
 }
 
+/** Workouts, sets and kilograms lifted in the last seven days. */
+export function weekSummary(workouts, now = Date.now()) {
+  const since = now - 7 * 24 * 60 * 60 * 1000;
+  const recent = workouts.filter((w) => w.startedAt >= since);
+  const sets = recent.flatMap((w) => w.exercises.flatMap((e) => e.sets));
+  return {
+    workouts: recent.length,
+    sets: sets.length,
+    volumeKg: sets.reduce((sum, s) => sum + s.kg * s.reps, 0),
+  };
+}
+
+/**
+ * The best ever set of each exercise, newest first: estimated max for loaded
+ * work, most reps for bodyweight work.
+ */
+export function recentRecords(workouts, limit = 3) {
+  return recentExerciseNames(workouts)
+    .map((name) => {
+      const r = records(workouts, name);
+      const best = r.bodyweight ? r.mostReps : r.bestMax;
+      if (!best) return null;
+      return { name, set: { kg: best.kg, reps: best.reps }, t: best.t, metric: r.bodyweight ? 'reps' : 'max' };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.t - a.t)
+    .slice(0, limit);
+}
+
 /* Saving */
 
 export function emptyData() {
@@ -229,6 +258,7 @@ export function finishWorkout(data, now = Date.now()) {
   const exercises = data.active.exercises.filter((e) => e.sets.length > 0);
   if (exercises.length === 0) return { ...data, active: null };
   const finished = { ...data.active, exercises, finishedAt: now };
+  delete finished.lastSetAt; // Only matters while the workout is running.
   return { ...data, active: null, workouts: [...data.workouts, finished] };
 }
 
@@ -254,6 +284,8 @@ function cleanWorkout(raw, finished) {
   const workout = { id, startedAt: raw.startedAt, exercises };
   if (finished) {
     workout.finishedAt = Number.isFinite(raw.finishedAt) ? raw.finishedAt : raw.startedAt;
+  } else if (Number.isFinite(raw.lastSetAt)) {
+    workout.lastSetAt = raw.lastSetAt; // When the last set was logged, for the rest timer.
   }
   return workout;
 }

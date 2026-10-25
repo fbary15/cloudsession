@@ -12,7 +12,6 @@ import {
   estimateMax,
   finishWorkout,
   formatSet,
-  formatWeight,
   fromDisplay,
   lastSets,
   nameKey,
@@ -21,18 +20,23 @@ import {
   parseBackup,
   progressSeries,
   recentExerciseNames,
+  recentRecords,
   records,
   sessionsFor,
   suggestExercises,
   toDisplay,
+  weekSummary,
   workoutSummary,
-  workoutsInLastWeek,
 } from './logic.js';
 import { drawLineChart } from './chart.js';
 
 const STORAGE_KEY = 'workout-log:v1';
 const PICK_KEY = 'workout-log:progress-exercise';
 const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const ICON_CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICON_TIMER = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 10v3.5l2.5 1.5M9.5 3.5h5M12 3.5v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const ICON_STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.5 2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.9l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8Z" fill="currentColor"/></svg>';
 
 const byId = (id) => document.getElementById(id);
 const views = { log: byId('view-log'), history: byId('view-history'), progress: byId('view-progress') };
@@ -42,6 +46,7 @@ let data = emptyData();
 let currentView = 'log';
 let stopChart = null;
 let warnedStorage = false;
+let restDismissed = 0; // The lastSetAt whose rest timer was tapped away.
 
 /* Saving */
 
@@ -95,6 +100,9 @@ const monthLabel = (t) => new Date(t).toLocaleDateString(undefined, { month: 'lo
 const timeLabel = (t) => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
+const volumeNumber = (kg) => Math.round(toDisplay(kg, unit())).toLocaleString();
+const volumeLabel = (kg) => `${volumeNumber(kg)} ${unit()}`;
+
 function minutesLabel(minutes) {
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
@@ -124,64 +132,95 @@ function confirmTap(button, armedText, action) {
   }, 3000);
 }
 
-function setsLine(sets) {
-  return sets.map((s) => formatSet(s, unit())).join(' · ');
-}
-
 function openDialog(dialog) {
   for (const other of Object.values(dialogs)) if (other !== dialog && other.open) other.close();
   if (!dialog.open) dialog.showModal();
 }
 
-/* Header */
-
-function renderHeader() {
-  const count = workoutsInLastWeek(data.workouts);
-  byId('week-line').textContent = count === 0
-    ? 'No workouts in the last 7 days'
-    : `${plural(count, 'workout')} in the last 7 days`;
-}
-
 /* Log tab */
 
 function renderLog() {
-  const view = views.log;
   if (!data.active) {
-    const last = data.workouts[data.workouts.length - 1];
-    view.replaceChildren(...[
-      h('div', { class: 'start' },
-        h('p', { class: 'eyebrow', text: dayLabel(Date.now()) }),
-        h('h2', { text: last ? 'Ready for the next one?' : 'Log your first workout' }),
-        h('p', { text: 'Start a workout, add exercises, and log each set as you go. Everything saves on this phone.' }),
-        h('button', { type: 'button', class: 'primary', 'data-action': 'start', text: 'Start workout' }),
-        isStandalone() ? null : h('button', { type: 'button', class: 'text-btn', 'data-action': 'install-hint', text: 'Add to your home screen' }),
-      ),
-      last ? h('div', {}, h('h3', { class: 'section-title', text: 'Last workout' }), workoutCard(last, false)) : null,
-    ].filter(Boolean)); // replaceChildren would print a null as the word "null".
+    renderHome();
     return;
   }
-
+  const view = views.log;
   const active = data.active;
   const cards = active.exercises.map((exercise, index) => exerciseCard(exercise, index));
+  const resting = Number.isFinite(active.lastSetAt) && active.lastSetAt !== restDismissed;
   view.replaceChildren(
-    h('div', { class: 'session-bar' },
-      h('div', {},
-        h('p', { class: 'eyebrow', text: 'Workout in progress' }),
-        h('p', { class: 'session-time' }, `Started ${timeLabel(active.startedAt)} · `, h('span', { id: 'elapsed', text: elapsedText() })),
-      ),
-      h('button', { type: 'button', class: 'primary', 'data-action': 'finish', text: 'Finish' }),
+    h('div', { class: 'session' },
+      h('div', { class: 'session-row' },
+        h('div', {},
+          h('p', { class: 'eyebrow live' }, h('span', { class: 'dot' }), 'Workout in progress'),
+          h('p', { class: 'session-time' }, h('span', { id: 'elapsed', text: elapsedText() }), h('small', { text: ` · started ${timeLabel(active.startedAt)}` }))),
+        h('button', { type: 'button', class: 'primary', 'data-action': 'finish', text: 'Finish' })),
+      resting ? h('button', { type: 'button', class: 'rest', 'data-action': 'rest-dismiss', html: ICON_TIMER, title: 'Tap to hide' },
+        h('span', { text: 'Rest since your last set' }),
+        h('span', { class: 'rest-time', id: 'rest-time', text: restText() })) : null,
     ),
     cards.length
       ? h('ol', { class: 'exercise-list' }, cards)
       : h('div', { class: 'empty' },
         h('strong', { text: 'Add your first exercise' }),
         h('span', { text: 'Pick from your usual exercises or type a new one.' })),
-    h('button', { type: 'button', class: cards.length ? 'secondary wide' : 'primary wide', 'data-action': 'add-exercise', text: 'Add exercise' }),
+    cards.length
+      ? h('button', { type: 'button', class: 'add-ex', 'data-action': 'add-exercise', html: ICON_PLUS }, 'Add exercise')
+      : h('button', { type: 'button', class: 'primary wide', 'data-action': 'add-exercise', text: 'Add exercise' }),
   );
+}
+
+/** The Log tab between workouts: this week at a glance, recent bests, last time. */
+function renderHome() {
+  const view = views.log;
+  const last = data.workouts[data.workouts.length - 1];
+  const week = weekSummary(data.workouts);
+  const bests = recentRecords(data.workouts, 3);
+  const stat = (value, label) => h('div', { class: 'hstat' },
+    h('span', { class: 'hstat-value' }, value),
+    h('span', { class: 'hstat-label', text: label }));
+  const bestValue = (b) => (b.metric === 'reps' ? plural(b.set.reps, 'rep') : `${displayMax(estimateMax(b.set), unit())} ${unit()}`);
+
+  view.replaceChildren(...[
+    h('section', { class: 'hero', 'aria-label': 'Start a workout' },
+      h('p', { class: 'hero-date', text: dayLabel(Date.now()) }),
+      h('h2', { text: last ? 'Ready for the next one?' : 'Log your first workout' }),
+      last ? h('p', { class: 'hero-kicker', text: 'Last 7 days' }) : null,
+      last
+        ? h('div', { class: 'hero-stats' },
+          stat(String(week.workouts), plural(week.workouts, 'workout').replace(/^\d+ /, '')),
+          stat(String(week.sets), plural(week.sets, 'set').replace(/^\d+ /, '')),
+          stat(volumeNumber(week.volumeKg), `${unit()} lifted`))
+        : h('p', { class: 'hero-sub', text: 'Add exercises and log each set as you go. Everything stays on this phone.' }),
+      h('button', { type: 'button', class: 'hero-cta', 'data-action': 'start', html: ICON_PLUS }, 'Start workout'),
+      isStandalone() ? null : h('button', { type: 'button', class: 'text-btn', 'data-action': 'install-hint', text: 'Add to your home screen' }),
+    ),
+    last ? null : h('ol', { class: 'steps', 'aria-label': 'How it works' },
+      h('li', {}, h('div', {}, h('strong', { text: 'Start a workout' }), h('span', { text: 'One tap and the clock is running.' }))),
+      h('li', {}, h('div', {}, h('strong', { text: 'Add your exercises' }), h('span', { text: 'Pick from the list or type your own.' }))),
+      h('li', {}, h('div', {}, h('strong', { text: 'Log every set' }), h('span', { text: 'Weight and reps. Next time you see what you did and can beat it.' }))),
+    ),
+    bests.length ? h('section', {},
+      h('h3', { class: 'section-title', text: 'Recent bests' }),
+      h('ul', { class: 'bests' }, bests.map((b) => h('li', { class: 'best' },
+        h('span', { class: 'best-icon', html: ICON_STAR }),
+        h('span', { class: 'best-main' },
+          h('span', { class: 'best-name', text: b.name }),
+          h('span', { class: 'best-sub', text: b.metric === 'reps' ? 'Most reps in a set' : `Est. max from ${formatSet(b.set, unit(), true)}` })),
+        h('span', { class: 'best-value' },
+          h('span', { text: bestValue(b) }),
+          h('span', { class: 'best-date', text: shortDate(b.t) })))))) : null,
+    last ? h('section', {}, h('h3', { class: 'section-title', text: 'Last workout' }), workoutCard(last, false)) : null,
+  ].filter(Boolean)); // replaceChildren would print a null as the word "null".
 }
 
 function elapsedText() {
   return data.active ? minutesLabel(Math.max(0, Math.floor((Date.now() - data.active.startedAt) / 60000))) : '';
+}
+
+function restText() {
+  const seconds = Math.max(0, Math.floor((Date.now() - data.active.lastSetAt) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 function exerciseCard(exercise, index) {
@@ -210,12 +249,21 @@ function exerciseCard(exercise, index) {
 
   const weightId = `weight-${index}`;
   const repsId = `reps-${index}`;
+  const lastTime = before.length
+    ? h('div', { class: 'last-time' },
+      h('span', { class: 'last-label', text: before.some((s) => s.kg > 0) ? `Last time · ${unit()}` : 'Last time' }),
+      before.map((s) => h('button', {
+        type: 'button', class: 'chip', 'data-action': 'fill', 'data-index': index, 'data-kg': s.kg, 'data-reps': s.reps,
+        title: 'Use these numbers', text: formatSet(s, unit()),
+      })))
+    : h('p', { class: 'last-time first', text: 'First time logging this one.' });
+
   return h('li', { class: 'exercise', 'data-index': index },
     h('div', { class: 'exercise-head' },
       h('h3', { text: exercise.name }),
-      h('button', { type: 'button', class: 'text-btn danger', 'data-action': 'remove-exercise', 'data-index': index, text: 'Remove' }),
+      h('button', { type: 'button', class: 'text-btn subtle', 'data-action': 'remove-exercise', 'data-index': index, text: 'Remove' }),
     ),
-    h('p', { class: 'last-time', text: before.length ? `Last time: ${setsLine(before)}${before.some((s) => s.kg > 0) ? ` ${unit()}` : ''}` : 'First time logging this one.' }),
+    lastTime,
     setRows.length ? h('ol', { class: 'sets' }, setRows) : null,
     h('div', { class: 'entry' },
       h('div', { class: 'field' },
@@ -279,9 +327,25 @@ function addSet(index) {
   const record = beatsRecord(data.workouts, exercise.name, set)
     && exercise.sets.every((earlier) => isStronger(set, earlier));
   exercise.sets.push(set);
+  data.active.lastSetAt = Date.now();
+  restDismissed = 0;
   save();
   renderLog();
+  views.log.querySelector(`.exercise[data-index="${index}"] .set:last-child`)?.classList.add('is-new');
+  navigator.vibrate?.(record ? [15, 40, 15] : 12);
   if (record) toast(`New best for ${exercise.name}`);
+}
+
+/** A "last time" chip fills the steppers with that set. */
+function fillFromChip(button) {
+  const kg = Number(button.dataset.kg);
+  byId(`weight-${button.dataset.index}`).value = kg > 0 ? toDisplay(kg, unit()) : '';
+  byId(`reps-${button.dataset.index}`).value = button.dataset.reps;
+}
+
+function dismissRest() {
+  restDismissed = data.active.lastSetAt;
+  renderLog();
 }
 
 function isStronger(a, b) {
@@ -364,13 +428,18 @@ function renderSuggestions() {
       h('span', { class: 'is-new', text: `Add "${query}"` }),
       h('span', { class: 'ex-meta', text: 'New exercise' }))));
   }
-  for (const name of names.slice(0, 40)) {
+  const item = (name) => {
     const sessions = recent.has(nameKey(name)) ? sessionsFor(data.workouts, name) : [];
-    const meta = sessions.length ? `Last: ${shortDate(sessions[sessions.length - 1].t)}` : '';
-    items.push(h('li', {}, h('button', { type: 'button', 'data-name': name },
-      h('span', { text: name }),
-      meta ? h('span', { class: 'ex-meta', text: meta }) : null)));
-  }
+    const meta = sessions.length ? `Last ${shortDate(sessions[sessions.length - 1].t)}` : '';
+    return h('li', {}, h('button', { type: 'button', 'data-name': name },
+      h('span', { class: 'ex-name', text: name }),
+      meta ? h('span', { class: 'ex-meta', text: meta }) : null,
+      h('span', { class: 'ex-add', html: ICON_PLUS })));
+  };
+  const own = names.filter((n) => recent.has(nameKey(n)));
+  const common = names.filter((n) => !recent.has(nameKey(n))).slice(0, 40);
+  if (own.length) items.push(h('li', { class: 'ex-group', text: 'Your exercises' }), ...own.map(item));
+  if (common.length) items.push(h('li', { class: 'ex-group', text: 'Common exercises' }), ...common.map(item));
   byId('ex-list').replaceChildren(...items);
 }
 
@@ -389,27 +458,34 @@ function addExercise(name) {
 
 function workoutCard(workout, withDelete = true) {
   const summary = workoutSummary(workout);
+  const date = new Date(workout.startedAt);
   const lines = workout.exercises.map((exercise) => {
     const byReps = !exercise.sets.some((s) => s.kg > 0);
     const top = bestSet(exercise.sets, byReps);
     return h('li', {},
       h('span', { text: exercise.name }),
-      h('span', { text: `${plural(exercise.sets.length, 'set')} · best ${formatSet(top, unit())}` }));
+      h('span', { text: `${plural(exercise.sets.length, 'set')} · ${formatSet(top, unit())}` }));
   });
   const details = workout.exercises.map((exercise) => h('div', { class: 'wc-ex' },
     h('h4', { text: exercise.name }),
-    h('p', { text: `${setsLine(exercise.sets)}${exercise.sets.some((s) => s.kg > 0) ? ` ${unit()}` : ''}` })));
+    h('div', { class: 'wc-sets' }, exercise.sets.map((s) => h('span', { class: 'chip', text: formatSet(s, unit()) })))));
 
   return h('details', { class: 'workout-card' },
     h('summary', {},
-      h('div', { class: 'wc-head' },
-        h('span', { class: 'wc-date', text: dayLabel(workout.startedAt) }),
-        h('span', { class: 'wc-meta', text: `${timeLabel(workout.startedAt)} · ${minutesLabel(summary.minutes)}` })),
-      h('ul', { class: 'wc-lines' }, lines),
-      h('span', { class: 'wc-more', text: 'Show every set' })),
+      h('span', { class: 'wc-date' },
+        h('span', { class: 'wc-day', text: String(date.getDate()) }),
+        h('span', { class: 'wc-mon', text: date.toLocaleDateString(undefined, { month: 'short' }) })),
+      h('div', { class: 'wc-body' },
+        h('div', { class: 'wc-head' },
+          h('span', { class: 'wc-title', text: `${date.toLocaleDateString(undefined, { weekday: 'long' })} · ${timeLabel(workout.startedAt)}` }),
+          h('span', { class: 'wc-meta', text: minutesLabel(summary.minutes) })),
+        h('ul', { class: 'wc-lines' }, lines)),
+      h('span', { class: 'wc-chev', html: ICON_CHEVRON })),
     h('div', { class: 'wc-detail' },
       details,
-      h('p', { class: 'wc-meta', text: `Total lifted: ${formatWeight(summary.volumeKg, unit())}` }),
+      h('p', { class: 'wc-total' },
+        h('span', { text: `${plural(summary.exerciseCount, 'exercise')} · ${plural(summary.setCount, 'set')}` }),
+        h('span', { text: `Lifted ${volumeLabel(summary.volumeKg)}` })),
       withDelete ? h('button', { type: 'button', class: 'text-btn danger', 'data-action': 'delete-workout', 'data-id': workout.id, text: 'Delete workout' }) : null),
   );
 }
@@ -496,7 +572,9 @@ function renderProgress() {
 
   view.replaceChildren(
     header,
-    h('div', { class: 'picker' }, h('label', { class: 'field-label', for: 'exercise-pick', text: 'Exercise' }), select),
+    h('div', { class: 'picker' },
+      h('label', { class: 'field-label', for: 'exercise-pick', text: 'Exercise' }),
+      h('div', { class: 'select' }, select, h('span', { class: 'select-chev', html: ICON_CHEVRON }))),
     h('div', { class: 'tiles' }, tiles),
     h('figure', { class: 'chart-card' },
       h('figcaption', {},
@@ -507,7 +585,7 @@ function renderProgress() {
       chartHost),
     h('section', {},
       h('h3', { class: 'section-title', text: 'Sessions' }),
-      h('div', { class: 'table-wrap' },
+      h('div', { class: 'table-wrap card' },
         h('table', { class: 'sessions' },
           h('thead', {}, h('tr', {},
             h('th', { scope: 'col', text: 'Date' }),
@@ -658,7 +736,6 @@ function renderView() {
 }
 
 function renderAll() {
-  renderHeader();
   renderView();
 }
 
@@ -675,6 +752,8 @@ views.log.addEventListener('click', (event) => {
   else if (action === 'add-set') addSet(Number(button.dataset.index));
   else if (action === 'remove-set') removeSet(Number(button.dataset.index), Number(button.dataset.set));
   else if (action === 'remove-exercise') removeExercise(button);
+  else if (action === 'fill') fillFromChip(button);
+  else if (action === 'rest-dismiss') dismissRest();
   else if (action === 'install-hint') openSettings();
 });
 
@@ -758,9 +837,12 @@ if ('serviceWorker' in navigator) {
 }
 
 setInterval(() => {
+  if (!data.active) return;
   const elapsed = byId('elapsed');
   if (elapsed) elapsed.textContent = elapsedText();
-}, 30000);
+  const rest = byId('rest-time');
+  if (rest && Number.isFinite(data.active.lastSetAt)) rest.textContent = restText();
+}, 1000);
 
 data = load();
 renderAll();

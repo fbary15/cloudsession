@@ -32,9 +32,12 @@ arrow button gives up on the current word and starts a new one.
 
 Log a workout set by set at the gym, then see your history and progress.
 
-- **Log**: start a workout, add exercises, and log each set with big steppers
-  for weight and reps. It shows what you did last time and marks any set that
-  beats your best ever.
+- **Log**: between workouts, this week's workouts, sets and weight lifted at
+  a glance, your recent bests, and your last workout. During one, a card that
+  stays in reach with the clock and a rest timer that restarts with every
+  set, exercise cards with big steppers for weight and reps, and last time's
+  sets as chips you tap to reuse their numbers. Any set that beats your best
+  ever gets a badge.
 - **History**: every finished workout, newest first. Tap one to see every set.
 - **Progress**: per exercise, your best estimated one-rep max (e1RM) each
   session as a chart, plus records and a table of sessions. Bodyweight
@@ -52,7 +55,8 @@ The installed app has its own storage, separate from the browser tab, so
 install it before logging, or move workouts across with a backup.
 
 - `workout/logic.js` holds the maths: unit conversion, e1RM (Epley formula),
-  best sets, records, and checking backups. It is fully tested.
+  best sets, records, the weekly summary, and checking backups. It is fully
+  tested.
 - `workout/chart.js` draws the progress chart as SVG.
 - `workout/app.js` draws the tabs and saves to the browser.
 - `workout/sw.js` is the service worker: it caches the app so it opens

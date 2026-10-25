@@ -18,10 +18,12 @@ import {
   parseBackup,
   progressSeries,
   recentExerciseNames,
+  recentRecords,
   records,
   sessionsFor,
   suggestExercises,
   toDisplay,
+  weekSummary,
   workoutSummary,
   workoutsInLastWeek,
 } from '../workout/logic.js';
@@ -122,6 +124,22 @@ test('workoutsInLastWeek counts recent workouts', () => {
   assert.equal(workoutsInLastWeek(history, T0 + 8 * DAY), 2);
 });
 
+test('weekSummary totals the last seven days', () => {
+  assert.deepEqual(weekSummary(history, T0 + 8 * DAY), { workouts: 2, sets: 5, volumeKg: 1737.5 });
+  assert.deepEqual(weekSummary([], T0), { workouts: 0, sets: 0, volumeKg: 0 });
+});
+
+test('recentRecords lists each exercise\'s best, newest first', () => {
+  const bests = recentRecords(history);
+  assert.deepEqual(bests.map((b) => b.name), ['bench  press', 'Pull-up', 'Squat']);
+  assert.deepEqual(bests[0].set, { kg: 62.5, reps: 8 });
+  assert.equal(bests[0].t, T0 + 7 * DAY);
+  assert.equal(bests[1].metric, 'reps');
+  assert.deepEqual(bests[1].set, { kg: 0, reps: 9 });
+  assert.equal(recentRecords(history, 1).length, 1);
+  assert.deepEqual(recentRecords([]), []);
+});
+
 test('finishWorkout saves sets and drops empty workouts', () => {
   const data = { ...emptyData(), active: { id: 'x', startedAt: T0, exercises: [{ name: 'Squat', sets: sets([100, 5]) }, { name: 'Lunge', sets: [] }] } };
   const done = finishWorkout(data, T0 + 3600000);
@@ -132,6 +150,15 @@ test('finishWorkout saves sets and drops empty workouts', () => {
 
   const empty = { ...emptyData(), active: { id: 'y', startedAt: T0, exercises: [{ name: 'Squat', sets: [] }] } };
   assert.deepEqual(finishWorkout(empty).workouts, []);
+
+  const resting = { ...emptyData(), active: { id: 'z', startedAt: T0, lastSetAt: T0 + 60000, exercises: [{ name: 'Squat', sets: sets([100, 5]) }] } };
+  assert.equal('lastSetAt' in finishWorkout(resting).workouts[0], false, 'the rest timer does not go into history');
+});
+
+test('normalizeData keeps the rest timer of a running workout', () => {
+  const data = normalizeData({ workouts: [], active: { id: 'a', startedAt: T0, lastSetAt: T0 + 90000, exercises: [] } });
+  assert.equal(data.active.lastSetAt, T0 + 90000);
+  assert.equal('lastSetAt' in normalizeData({ workouts: [], active: { id: 'a', startedAt: T0, exercises: [] } }).active, false);
 });
 
 test('normalizeData drops malformed sets, workouts and duplicates', () => {
