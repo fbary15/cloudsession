@@ -5,9 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Workout Log</title>
 <meta name="description" content="Log sets and reps at the gym and chart your progress.">
+<meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f141b" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Workout">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,600..900&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,600..900&family=Atkinson+Hyperlegible:wght@400;700&display=swap" crossorigin>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -57,6 +66,14 @@
 
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
+<div id="update" class="update" role="status" hidden>
+  <span>A new version is ready.</span>
+  <button type="button" class="update-btn" id="update-btn">Reload</button>
+  <button type="button" class="icon-btn" id="update-close" aria-label="Not now">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+</div>
+
 <dialog id="add-exercise" class="tall" aria-labelledby="add-title">
   <div class="sheet">
     <div class="sheet-head">
@@ -96,6 +113,12 @@
       <label><input type="radio" name="unit" value="kg" id="unit-kg"> Kilograms (kg)</label>
       <label><input type="radio" name="unit" value="lb" id="unit-lb"> Pounds (lb)</label>
     </fieldset>
+    <div class="install">
+      <h3>On your phone</h3>
+      <p id="install-text"></p>
+      <button type="button" class="primary" id="install-btn" hidden>Install app</button>
+      <p id="install-note" hidden>The installed app keeps its own copy of your workouts. If you logged some here first, copy a backup below and restore it in the installed app.</p>
+    </div>
     <div class="backup">
       <h3>Backup</h3>
       <p>Your workouts are saved in this browser, on this phone only. Clearing your browser data deletes them, so keep a backup somewhere safe.</p>
