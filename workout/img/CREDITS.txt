@@ -1,0 +1,5 @@
+Exercise photos in this folder come from the Free Exercise DB
+(https://github.com/yuhonas/free-exercise-db), an open dataset released
+under the Unlicense (public domain). They were resized for this app.
+Each exercise has two frames: -0.jpg is the start of the movement and
+-1.jpg is the end.

@@ -811,7 +811,7 @@ dialog::backdrop { background: var(--scrim, rgb(10 14 20 / 50%)); }
   .grabber { display: block; width: 40px; height: 4px; margin: 10px auto 0; border-radius: 2px; background: var(--line); }
 }
 @keyframes sheet-up { from { transform: translateY(32px); opacity: 0; } to { transform: none; opacity: 1; } }
-.sheet { display: grid; gap: 16px; padding: 14px 20px 22px; min-height: 0; }
+.sheet { display: grid; gap: 16px; padding: 14px 20px 22px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 dialog.tall .sheet { height: 100%; grid-template-rows: auto auto minmax(0, 1fr); }
 .sheet p { margin: 0; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-block: -2px; }
@@ -843,13 +843,15 @@ textarea.field-input { resize: vertical; font-family: ui-monospace, "SF Mono", M
 
 .ex-list { list-style: none; margin: 0 -8px; padding: 0 0 8px; overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
 .ex-group { padding: 12px 8px 4px; color: var(--muted); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.ex-list button {
-  width: 100%;
-  min-height: 50px;
+.ex-row { display: flex; align-items: center; gap: 6px; padding-left: 8px; }
+.ex-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 8px;
+  gap: 10px;
+  padding: 8px 8px 8px 6px;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -858,12 +860,92 @@ textarea.field-input { resize: vertical; font-family: ui-monospace, "SF Mono", M
   text-align: left;
   cursor: pointer;
 }
-.ex-list button:hover, .ex-list button:focus-visible { background: var(--field); outline: none; }
+.ex-main:hover, .ex-main:focus-visible { background: var(--field); outline: none; }
 .ex-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.ex-meta { color: var(--muted); font-size: 0.8125rem; font-weight: 400; white-space: nowrap; }
-.ex-add { color: var(--muted); display: grid; place-items: center; }
+.ex-meta { color: var(--muted); font-size: 0.75rem; font-weight: 400; text-align: right; max-width: 40%; }
+.ex-add { color: var(--muted); display: grid; place-items: center; flex: none; }
 .ex-add svg { width: 18px; height: 18px; }
 .ex-list .is-new { color: var(--accent); }
+
+/* Exercise pictures */
+.thumb {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 48px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--field);
+  cursor: pointer;
+}
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb:active img { transform: scale(1.05); }
+.thumb-blank {
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  cursor: default;
+}
+.exercise-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.exercise-title .thumb { width: 60px; height: 40px; }
+.preview-head { display: grid; gap: 2px; min-width: 0; }
+.preview-head h2 { overflow-wrap: anywhere; }
+.frames { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.frames figure { margin: 0; display: grid; gap: 6px; }
+.frames img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 12px; background: var(--field); }
+.frames figcaption { color: var(--muted); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; text-align: center; }
+
+/* Picking a routine */
+.routines { display: grid; gap: 10px; }
+.routine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  gap: 10px 8px;
+  align-items: center;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.routine:hover { background: var(--field-strong); }
+.routine:active { transform: scale(0.99); }
+.routine-thumbs { grid-column: 1 / -1; display: flex; gap: 6px; }
+.routine-thumbs img, .routine-thumbs .thumb-blank { width: 64px; height: 43px; border-radius: 8px; object-fit: cover; display: grid; place-items: center; }
+.routine-main { display: grid; gap: 2px; min-width: 0; }
+.routine-name { font-family: var(--font-display); font-weight: 800; font-size: 1.15rem; }
+.routine-meta { color: var(--muted); font-size: 0.8125rem; }
+.routine-list { color: var(--muted); font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.routine-empty { background: transparent; border: 2px dashed var(--line); }
+.routine-empty:hover { background: var(--field); }
+
+/* Finish sheet: save the routine */
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--accent-wash);
+  font-weight: 700;
+  cursor: pointer;
+}
+.check input { width: 22px; height: 22px; margin: 1px 0 0; flex: none; accent-color: var(--accent); }
+
+/* Settings: routines */
+.routines-info { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.routines-info > p { color: var(--muted); font-size: 0.875rem; }
+.routine-summary { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.routine-summary li { display: grid; gap: 1px; font-size: 0.9375rem; }
+.routine-summary span { color: var(--muted); font-size: 0.875rem; }
 
 .units { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; }
 .units legend { padding: 0; margin-bottom: 4px; font-weight: 700; }

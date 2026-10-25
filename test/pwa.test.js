@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
+import { EXERCISES, exerciseImages } from '../workout/exercises.js';
 
 const root = new URL('../workout/', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
@@ -49,7 +50,9 @@ test('the service worker caches every file the app loads', async () => {
     .filter((url) => !/^(?:https?:)?\/\//.test(url));
   const imports = [...(await read('app.js')).matchAll(/from '\.\/([^']+)'/g)].map((m) => `./${m[1]}`);
   const icons = JSON.parse(await read('manifest.webmanifest')).icons.map((i) => i.src);
-  for (const ref of [...pageRefs, ...imports, ...icons]) {
+  const pictures = EXERCISES.flatMap(exerciseImages);
+  for (const picture of pictures) assert.ok(await exists(picture), `${picture} exists`);
+  for (const ref of [...pageRefs, ...imports, ...icons, ...pictures]) {
     const path = ref.startsWith('./') ? ref : `./${ref}`;
     assert.ok(shell.includes(path), `${ref} is in the cache list`);
   }

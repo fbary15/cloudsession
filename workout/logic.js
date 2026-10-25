@@ -4,21 +4,15 @@
 // Weights are always stored in kilograms and converted for display, so
 // switching between kg and lb never changes a saved workout.
 
+import { EXERCISES, ROUTINES } from './exercises.js';
+
 export const KG_PER_LB = 0.45359237;
 export const UNITS = {
   kg: { step: 2.5 },
   lb: { step: 5 },
 };
 
-export const DEFAULT_EXERCISES = [
-  'Bench press', 'Squat', 'Deadlift', 'Overhead press', 'Barbell row',
-  'Pull-up', 'Chin-up', 'Dip', 'Push-up', 'Incline bench press',
-  'Dumbbell bench press', 'Dumbbell shoulder press', 'Lat pulldown',
-  'Seated cable row', 'Leg press', 'Romanian deadlift', 'Front squat',
-  'Lunge', 'Hip thrust', 'Leg curl', 'Leg extension', 'Calf raise',
-  'Bicep curl', 'Hammer curl', 'Tricep pushdown', 'Skull crusher',
-  'Lateral raise', 'Face pull', 'Chest fly',
-];
+export const DEFAULT_EXERCISES = EXERCISES.map((e) => e.name);
 
 /* Units */
 
@@ -88,6 +82,50 @@ export function cleanName(name) {
 }
 
 export const nameKey = (name) => cleanName(name).toLowerCase();
+
+/** The catalog entry (picture, muscle group) for an exercise name, or null. */
+export function exerciseInfo(name) {
+  const key = nameKey(name);
+  return EXERCISES.find((e) => nameKey(e.name) === key) ?? null;
+}
+
+/* Routines */
+
+export function defaultRoutines() {
+  return ROUTINES.map((r) => ({ id: r.id, name: r.name, muscles: r.muscles, exercises: [...r.exercises] }));
+}
+
+export const routineById = (data, id) => data.routines.find((r) => r.id === id) ?? null;
+
+/** Starts a workout, with a routine's exercises already in it when one is given. */
+export function startWorkout(data, routineId = null, now = Date.now()) {
+  const routine = routineById(data, routineId);
+  const active = {
+    id: newId(now),
+    startedAt: now,
+    exercises: routine ? routine.exercises.map((name) => ({ name, sets: [] })) : [],
+  };
+  if (routine) active.routine = routine.id;
+  return { ...data, active };
+}
+
+const doneNames = (workout) => workout.exercises.filter((e) => e.sets.length > 0).map((e) => e.name);
+
+/** Whether the exercises actually done in a workout differ from its routine. */
+export function routineChanged(data, workout) {
+  const routine = routineById(data, workout.routine);
+  if (!routine) return false;
+  const done = doneNames(workout).map(nameKey);
+  const saved = routine.exercises.map(nameKey);
+  return done.length > 0 && (done.length !== saved.length || done.some((name, i) => name !== saved[i]));
+}
+
+/** Makes what was done in a workout the new exercise list of its routine. */
+export function saveRoutineFrom(data, workout) {
+  const done = doneNames(workout);
+  if (!done.length || !routineById(data, workout.routine)) return data;
+  return { ...data, routines: data.routines.map((r) => (r.id === workout.routine ? { ...r, exercises: done } : r)) };
+}
 
 /** Every exercise ever logged, most recently used first. */
 export function recentExerciseNames(workouts) {
@@ -245,7 +283,7 @@ export function recentRecords(workouts, limit = 3) {
 /* Saving */
 
 export function emptyData() {
-  return { version: 1, unit: 'kg', workouts: [], active: null };
+  return { version: 1, unit: 'kg', workouts: [], active: null, routines: defaultRoutines() };
 }
 
 export function newId(now = Date.now(), random = Math.random) {
@@ -282,6 +320,7 @@ function cleanWorkout(raw, finished) {
   const exercises = Array.isArray(raw.exercises) ? raw.exercises.map(cleanExercise).filter(Boolean) : [];
   const id = typeof raw.id === 'string' && raw.id ? raw.id.slice(0, 40) : newId(raw.startedAt);
   const workout = { id, startedAt: raw.startedAt, exercises };
+  if (ROUTINES.some((r) => r.id === raw.routine)) workout.routine = raw.routine;
   if (finished) {
     workout.finishedAt = Number.isFinite(raw.finishedAt) ? raw.finishedAt : raw.startedAt;
   } else if (Number.isFinite(raw.lastSetAt)) {
@@ -301,7 +340,20 @@ export function normalizeData(raw) {
     .filter((w) => w && w.exercises.some((e) => e.sets.length > 0) && !ids.has(w.id) && ids.add(w.id))
     .sort((a, b) => a.startedAt - b.startedAt);
   data.active = cleanWorkout(raw.active, false);
+  data.routines = cleanRoutines(raw.routines);
   return data;
+}
+
+/** The built-in routines, each with its saved exercise list when there is one. */
+function cleanRoutines(raw) {
+  const defaults = defaultRoutines();
+  if (!Array.isArray(raw)) return defaults;
+  return defaults.map((routine) => {
+    const saved = raw.find((r) => r && r.id === routine.id);
+    if (!saved || !Array.isArray(saved.exercises)) return routine;
+    const exercises = saved.exercises.map(cleanName).filter(Boolean);
+    return exercises.length ? { ...routine, exercises } : routine;
+  });
 }
 
 export function backupText(data, now = Date.now()) {

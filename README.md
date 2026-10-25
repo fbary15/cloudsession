@@ -38,6 +38,13 @@ Log a workout set by set at the gym, then see your history and progress.
   set, exercise cards with big steppers for weight and reps, and last time's
   sets as chips you tap to reuse their numbers. Any set that beats your best
   ever gets a badge.
+- **Day routines**: start a Push day, Pull day or Leg day and the usual
+  exercises are already in the workout. Adjust them as you train and tick
+  "Save these exercises" when you finish to make that the new routine. An
+  empty workout is always one tap away too.
+- **Pictures**: every built-in exercise has two photos, the start and the end
+  of the movement, in the picker and on its card, so you can recognise one
+  without knowing its name.
 - **History**: every finished workout, newest first. Tap one to see every set.
 - **Progress**: per exercise, your best estimated one-rep max (e1RM) each
   session as a chart, plus records and a table of sessions. Bodyweight
@@ -55,8 +62,10 @@ The installed app has its own storage, separate from the browser tab, so
 install it before logging, or move workouts across with a backup.
 
 - `workout/logic.js` holds the maths: unit conversion, e1RM (Epley formula),
-  best sets, records, the weekly summary, and checking backups. It is fully
-  tested.
+  best sets, records, the weekly summary, routines, and checking backups. It
+  is fully tested.
+- `workout/exercises.js` is the exercise catalog (name, muscle group,
+  picture) and the default day routines. The photos live in `workout/img/`.
 - `workout/chart.js` draws the progress chart as SVG.
 - `workout/app.js` draws the tabs and saves to the browser.
 - `workout/sw.js` is the service worker: it caches the app so it opens
@@ -125,3 +134,7 @@ More on cloud sessions: <https://code.claude.com/docs/en/claude-code-on-the-web>
 Accepted guesses come from
 [an-array-of-english-words](https://github.com/words/an-array-of-english-words)
 by Zeke Sikelianos, under the MIT License. See `puzzle/WORDLIST-LICENSE.txt`.
+
+Exercise photos come from the
+[Free Exercise DB](https://github.com/yuhonas/free-exercise-db), released
+under the Unlicense (public domain). See `workout/img/CREDITS.txt`.
