@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Workout Log</title>
 <meta name="description" content="Log sets and reps at the gym and chart your progress.">
 <meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
@@ -33,7 +33,6 @@
         </svg>
         <span>Workout Log</span>
       </h1>
-      <p class="edition" id="week-line">No workouts in the last 7 days</p>
     </div>
     <button type="button" class="icon-btn" id="settings-btn" aria-label="Settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -50,15 +49,15 @@
 <nav class="tabbar" aria-label="Sections">
   <div class="wrap tabbar-inner">
     <button type="button" class="tab" data-view="log" aria-current="page">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h8M8 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
       <span>Log</span>
     </button>
     <button type="button" class="tab" data-view="history">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
       <span>History</span>
     </button>
     <button type="button" class="tab" data-view="progress">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m5 15 4.5-4.5 3.5 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="tab-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m5 15 4.5-4.5 3.5 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
       <span>Progress</span>
     </button>
   </div>
@@ -75,6 +74,7 @@
 </div>
 
 <dialog id="add-exercise" class="tall" aria-labelledby="add-title">
+  <div class="grabber" aria-hidden="true"></div>
   <div class="sheet">
     <div class="sheet-head">
       <h2 id="add-title">Add exercise</h2>
@@ -89,6 +89,7 @@
 </dialog>
 
 <dialog id="finish" aria-labelledby="finish-title">
+  <div class="grabber" aria-hidden="true"></div>
   <div class="sheet">
     <h2 id="finish-title" tabindex="-1" autofocus>Finish workout?</h2>
     <p id="finish-summary"></p>
@@ -101,6 +102,7 @@
 </dialog>
 
 <dialog id="settings" aria-labelledby="settings-title">
+  <div class="grabber" aria-hidden="true"></div>
   <div class="sheet">
     <div class="sheet-head">
       <h2 id="settings-title" tabindex="-1" autofocus>Settings</h2>
@@ -110,8 +112,10 @@
     </div>
     <fieldset class="units">
       <legend>Weight unit</legend>
-      <label><input type="radio" name="unit" value="kg" id="unit-kg"> Kilograms (kg)</label>
-      <label><input type="radio" name="unit" value="lb" id="unit-lb"> Pounds (lb)</label>
+      <div class="segmented">
+        <label><input type="radio" name="unit" value="kg" id="unit-kg"><span>Kilograms (kg)</span></label>
+        <label><input type="radio" name="unit" value="lb" id="unit-lb"><span>Pounds (lb)</span></label>
+      </div>
     </fieldset>
     <div class="install">
       <h3>On your phone</h3>
