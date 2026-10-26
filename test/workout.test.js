@@ -11,6 +11,8 @@ import {
   estimateMax,
   exerciseInfo,
   finishWorkout,
+  firstSetAt,
+  moveExercise,
   formatSet,
   formatWeight,
   fromDisplay,
@@ -18,6 +20,7 @@ import {
   niceTicks,
   normalizeData,
   parseBackup,
+  performedExercises,
   progressSeries,
   recentExerciseNames,
   recentRecords,
@@ -206,6 +209,49 @@ test('finishWorkout saves sets and drops empty workouts', () => {
 
   const resting = { ...emptyData(), active: { id: 'z', startedAt: T0, lastSetAt: T0 + 60000, exercises: [{ name: 'Squat', sets: sets([100, 5]) }] } };
   assert.equal('lastSetAt' in finishWorkout(resting).workouts[0], false, 'the rest timer does not go into history');
+});
+
+test('exercises end up in the order they were actually started', () => {
+  const active = {
+    id: 'o', startedAt: T0,
+    exercises: [
+      { name: 'Bench press', sets: [{ kg: 60, reps: 8, at: T0 + 20 * 60000 }, { kg: 60, reps: 8, at: T0 + 23 * 60000 }] },
+      { name: 'Incline bench press', sets: [] },
+      { name: 'Lateral raise', sets: [{ kg: 10, reps: 12, at: T0 + 5 * 60000 }] },
+      { name: 'Dip', sets: [{ kg: 0, reps: 10 }] },
+    ],
+  };
+  assert.deepEqual(performedExercises(active).map((e) => e.name), ['Dip', 'Lateral raise', 'Bench press'], 'untimed sets count as earliest');
+  assert.equal(firstSetAt(active.exercises[0]), T0 + 20 * 60000);
+  assert.equal(firstSetAt(active.exercises[1]), null);
+  assert.equal(firstSetAt(active.exercises[3]), null);
+  const done = finishWorkout({ ...emptyData(), active }, T0 + 3600000);
+  assert.deepEqual(done.workouts[0].exercises.map((e) => e.name), ['Dip', 'Lateral raise', 'Bench press']);
+  assert.equal(done.workouts[0].exercises[2].sets[0].at, T0 + 20 * 60000, 'set times are kept');
+});
+
+test('doing a routine in another order counts as a change and saves that order', () => {
+  const data = emptyData();
+  const push = data.routines[0];
+  const reversed = { routine: 'push', exercises: push.exercises.map((name, i) => ({ name, sets: [{ kg: 20, reps: 10, at: T0 + (10 - i) * 60000 }] })) };
+  assert.equal(routineChanged(data, reversed), true);
+  assert.deepEqual(saveRoutineFrom(data, reversed).routines[0].exercises, [...push.exercises].reverse());
+});
+
+test('moveExercise reorders the running workout within bounds', () => {
+  const data = startWorkout(emptyData(), 'legs', T0);
+  const names = (d) => d.active.exercises.map((e) => e.name);
+  const moved = moveExercise(data, 2, 0);
+  assert.deepEqual(names(moved), ['Romanian deadlift', 'Squat', 'Leg press', 'Leg extension', 'Leg curl', 'Calf raise']);
+  assert.equal(moveExercise(data, 0, -1), data);
+  assert.equal(moveExercise(data, 5, 6), data);
+  assert.equal(moveExercise(data, 1, 1), data);
+  assert.equal(moveExercise(emptyData(), 0, 1).active, null);
+});
+
+test('normalizeData keeps set times and drops bad ones', () => {
+  const data = normalizeData({ workouts: [{ id: 'a', startedAt: T0, exercises: [{ name: 'Squat', sets: [{ kg: 100, reps: 5, at: T0 + 1 }, { kg: 100, reps: 5, at: 'noon' }] }] }] });
+  assert.deepEqual(data.workouts[0].exercises[0].sets, [{ kg: 100, reps: 5, at: T0 + 1 }, { kg: 100, reps: 5 }]);
 });
 
 test('normalizeData keeps the rest timer of a running workout', () => {

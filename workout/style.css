@@ -195,6 +195,10 @@ button.group-row:active { background: var(--bg-2); }
 }
 .icon-btn:active { background: var(--bg-2); }
 .icon-btn svg { width: 22px; height: 22px; }
+.icon-btn.small { width: 32px; height: 32px; color: var(--muted); }
+.icon-btn.small svg { width: 18px; height: 18px; }
+.icon-btn:disabled { opacity: 0.3; cursor: default; }
+.icon-btn:disabled:active { background: transparent; }
 
 /* Workout in progress */
 .session {
@@ -232,6 +236,8 @@ button.group-row:active { background: var(--bg-2); }
 .exercise-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .exercise { display: grid; gap: 12px; padding: 12px 14px 14px; }
 .exercise-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.exercise-tools { display: flex; align-items: center; gap: 2px; flex: none; }
+.exercise-tools .text-btn { margin-left: 4px; }
 .exercise h3 { font-size: 1.0625rem; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
 .exercise-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .last-time { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -352,7 +358,8 @@ button.chip:active { background: var(--line-strong); }
 .workout-card[open] .wc-chev { transform: rotate(180deg); }
 .wc-detail { display: grid; gap: 12px; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
 .wc-ex { display: grid; gap: 6px; }
-.wc-ex h4 { font-size: 0.9375rem; font-weight: 600; }
+.wc-ex h4 { display: flex; justify-content: space-between; gap: 12px; font-size: 0.9375rem; font-weight: 600; }
+.wc-time { color: var(--muted); font-weight: 400; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
 .wc-sets { display: flex; flex-wrap: wrap; gap: 6px; }
 .wc-total { display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 .wc-detail .text-btn { justify-self: start; }
