@@ -42,6 +42,10 @@ Log a workout set by set at the gym, then see your history and progress.
   exercises are already in the workout. Adjust them as you train and tick
   "Save these exercises" when you finish to make that the new routine. An
   empty workout is always one tap away too.
+- **Order**: every set remembers when it was logged, so a finished workout
+  lists its exercises in the order you actually started them, with the
+  time next to each. You can also move an exercise up or down while
+  training. Saving a routine keeps that order for next time.
 - **Pictures**: every built-in exercise has two photos, the start and the end
   of the movement, in the picker and on its card, so you can recognise one
   without knowing its name.

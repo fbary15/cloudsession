@@ -109,7 +109,36 @@ export function startWorkout(data, routineId = null, now = Date.now()) {
   return { ...data, active };
 }
 
-const doneNames = (workout) => workout.exercises.filter((e) => e.sets.length > 0).map((e) => e.name);
+/** When an exercise was started: the time of its first logged set, or null. */
+export function firstSetAt(exercise) {
+  const times = exercise.sets.map((s) => s.at).filter(Number.isFinite);
+  return times.length ? Math.min(...times) : null;
+}
+
+/**
+ * The exercises that got at least one set, in the order they were actually
+ * started. Sets logged before times were recorded sort first, which keeps an
+ * old workout's order as it was.
+ */
+export function performedExercises(workout) {
+  return workout.exercises
+    .map((exercise, index) => ({ exercise, index, at: firstSetAt(exercise) ?? -Infinity }))
+    .filter((item) => item.exercise.sets.length > 0)
+    .sort((a, b) => a.at - b.at || a.index - b.index)
+    .map((item) => item.exercise);
+}
+
+const doneNames = (workout) => performedExercises(workout).map((e) => e.name);
+
+/** Moves an exercise of the running workout to another position. */
+export function moveExercise(data, from, to) {
+  const exercises = data.active?.exercises ?? [];
+  if (from === to || from < 0 || to < 0 || from >= exercises.length || to >= exercises.length) return data;
+  const reordered = [...exercises];
+  const [moved] = reordered.splice(from, 1);
+  reordered.splice(to, 0, moved);
+  return { ...data, active: { ...data.active, exercises: reordered } };
+}
 
 /** Whether the exercises actually done in a workout differ from its routine. */
 export function routineChanged(data, workout) {
@@ -293,7 +322,7 @@ export function newId(now = Date.now(), random = Math.random) {
 /** Moves the active workout into history. A workout with no sets is dropped. */
 export function finishWorkout(data, now = Date.now()) {
   if (!data.active) return data;
-  const exercises = data.active.exercises.filter((e) => e.sets.length > 0);
+  const exercises = performedExercises(data.active);
   if (exercises.length === 0) return { ...data, active: null };
   const finished = { ...data.active, exercises, finishedAt: now };
   delete finished.lastSetAt; // Only matters while the workout is running.
@@ -305,7 +334,9 @@ function cleanSet(raw) {
   const reps = Number(raw?.reps);
   if (!Number.isFinite(kg) || kg < 0 || kg > 2000) return null;
   if (!Number.isInteger(reps) || reps < 1 || reps > 1000) return null;
-  return { kg, reps };
+  const set = { kg, reps };
+  if (Number.isFinite(raw.at)) set.at = raw.at; // When it was logged, for the order of exercises.
+  return set;
 }
 
 function cleanExercise(raw) {

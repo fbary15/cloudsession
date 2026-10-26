@@ -12,9 +12,11 @@ import {
   estimateMax,
   exerciseInfo,
   finishWorkout,
+  firstSetAt,
   formatSet,
   fromDisplay,
   lastSets,
+  moveExercise,
   nameKey,
   normalizeData,
   parseBackup,
@@ -40,6 +42,7 @@ const PICK_KEY = 'workout-log:progress-exercise';
 const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 const ICON_CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICON_UP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_FORWARD = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const byId = (id) => document.getElementById(id);
@@ -256,6 +259,7 @@ function restText() {
 }
 
 function exerciseCard(exercise, index) {
+  const total = data.active.exercises.length;
   const before = lastSets(data.workouts, exercise.name);
   const latest = exercise.sets[exercise.sets.length - 1] ?? before[0];
   const weightValue = latest && latest.kg > 0 ? toDisplay(latest.kg, unit()) : '';
@@ -293,7 +297,10 @@ function exerciseCard(exercise, index) {
   return h('li', { class: 'exercise group', 'data-index': index },
     h('div', { class: 'exercise-head' },
       h('div', { class: 'exercise-title' }, thumb(exercise.name), h('h3', { text: exercise.name })),
-      h('button', { type: 'button', class: 'text-btn subtle', 'data-action': 'remove-exercise', 'data-index': index, text: 'Remove' }),
+      h('div', { class: 'exercise-tools' },
+        total > 1 ? h('button', { type: 'button', class: 'icon-btn small', 'data-action': 'move', 'data-index': index, 'data-dir': -1, disabled: index === 0, 'aria-label': 'Move up', html: ICON_UP }) : null,
+        total > 1 ? h('button', { type: 'button', class: 'icon-btn small', 'data-action': 'move', 'data-index': index, 'data-dir': 1, disabled: index === total - 1, 'aria-label': 'Move down', html: ICON_CHEVRON }) : null,
+        h('button', { type: 'button', class: 'text-btn subtle', 'data-action': 'remove-exercise', 'data-index': index, text: 'Remove' })),
     ),
     lastTime,
     setRows.length ? h('ol', { class: 'sets' }, setRows) : null,
@@ -374,7 +381,7 @@ function addSet(index) {
     toast('That weight looks too heavy to be right');
     return;
   }
-  const set = { kg, reps };
+  const set = { kg, reps, at: Date.now() };
   // Announce a record once, not again for every later set that also beats it.
   const record = beatsRecord(data.workouts, exercise.name, set)
     && exercise.sets.every((earlier) => isStronger(set, earlier));
@@ -398,6 +405,15 @@ function fillFromChip(button) {
 function dismissRest() {
   restDismissed = data.active.lastSetAt;
   renderLog();
+}
+
+function moveCard(button) {
+  const from = Number(button.dataset.index);
+  const to = from + Number(button.dataset.dir);
+  data = moveExercise(data, from, to);
+  save();
+  renderLog();
+  views.log.querySelector(`.exercise[data-index="${to}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function isStronger(a, b) {
@@ -531,8 +547,10 @@ function workoutCard(workout, withDelete = true) {
       h('span', { text: exercise.name }),
       h('span', { text: `${plural(exercise.sets.length, 'set')} · ${formatSet(top, unit())}` }));
   });
-  const details = workout.exercises.map((exercise) => h('div', { class: 'wc-ex' },
-    h('h4', { text: exercise.name }),
+  const details = workout.exercises.map((exercise, i) => h('div', { class: 'wc-ex' },
+    h('h4', {},
+      h('span', { text: `${i + 1}. ${exercise.name}` }),
+      firstSetAt(exercise) ? h('span', { class: 'wc-time', text: timeLabel(firstSetAt(exercise)) }) : null),
     h('div', { class: 'wc-sets' }, exercise.sets.map((s) => h('span', { class: 'chip', text: formatSet(s, unit()) })))));
 
   return h('details', { class: 'workout-card' },
@@ -827,6 +845,7 @@ views.log.addEventListener('click', (event) => {
   else if (action === 'remove-set') removeSet(Number(button.dataset.index), Number(button.dataset.set));
   else if (action === 'remove-exercise') removeExercise(button);
   else if (action === 'fill') fillFromChip(button);
+  else if (action === 'move') moveCard(button);
   else if (action === 'rest-dismiss') dismissRest();
   else if (action === 'install-hint') openSettings();
 });
