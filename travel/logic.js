@@ -5,29 +5,35 @@
 // Saved data looks like this:
 //   {
 //     version: 1,
-//     countries: { US: { status: 'visited', at: 1730000000000 } },
+//     countries: { US: { status: 'visited', at: 1730000000000, u: 1730000000000 } },
 //     cities: {
 //       g4887398: { name: 'Chicago', cc: 'US', lon: -87.65, lat: 41.85,
-//                   sub: 'IL', status: 'visited', at: 1730000000000 },
+//                   sub: 'IL', status: 'visited', at: 1730000000000, u: 1730000000000 },
 //     },
+//     deleted: { 'city:g5261457': 1730000000000 },
 //   }
 // A status is 'visited' (been there) or 'wish' (bucket list). A country also
 // counts as visited when any of its cities is, so marking Chicago is enough
 // to light up the United States.
+//
+// `at` is when a place got its current status, `u` when the entry last
+// changed. `deleted` remembers when something was unmarked. Together they let
+// two devices that changed things separately merge their data (mergeData):
+// for every place, the most recent change wins.
 
 export const STATUSES = ['visited', 'wish'];
 export const WORLD_COUNTRIES = 195;
 export const CONTINENTS = ['Európa', 'Ázsia', 'Afrika', 'Észak-Amerika', 'Dél-Amerika', 'Óceánia'];
 
 export function emptyData() {
-  return { version: 1, countries: {}, cities: {} };
+  return { version: 1, countries: {}, cities: {}, deleted: {} };
 }
 
 /** Lowercase with accents removed, so "Bécs" matches "becs" and "São" "sao". */
 export function fold(text) {
   return String(text ?? '')
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/ß/g, 'ss')
     .replace(/[łŁ]/g, 'l')
     .replace(/[øØ]/g, 'o')
@@ -44,29 +50,51 @@ export function flag(cc) {
 
 // --- Marking ----------------------------------------------------------------
 
+const countryKey = (id) => `country:${id}`;
+const cityKey = (key) => `city:${key}`;
+
+function withoutTombstone(deleted, key) {
+  if (!(key in deleted)) return deleted;
+  const next = { ...deleted };
+  delete next[key];
+  return next;
+}
+
 /** Marks a country (status 'visited' or 'wish') or clears it (null). */
 export function setCountry(data, id, status, now = Date.now()) {
   const countries = { ...data.countries };
-  if (status) countries[id] = { status, at: countries[id]?.status === status ? countries[id].at : now };
-  else delete countries[id];
-  return { ...data, countries };
+  let deleted = data.deleted;
+  if (status) {
+    countries[id] = { status, at: countries[id]?.status === status ? countries[id].at : now, u: now };
+    deleted = withoutTombstone(deleted, countryKey(id));
+  } else if (countries[id]) {
+    delete countries[id];
+    deleted = { ...deleted, [countryKey(id)]: now };
+  }
+  return { ...data, countries, deleted };
 }
 
 /**
  * Clears a country and every city marked in it. Used when someone unmarks a
  * country, since a visited city would otherwise keep it lit.
  */
-export function clearCountry(data, id) {
+export function clearCountry(data, id, now = Date.now()) {
   const cities = {};
-  for (const [key, city] of Object.entries(data.cities)) if (city.cc !== id) cities[key] = city;
+  const deleted = { ...data.deleted };
+  for (const [key, city] of Object.entries(data.cities)) {
+    if (city.cc !== id) cities[key] = city;
+    else deleted[cityKey(key)] = now;
+  }
   const countries = { ...data.countries };
+  if (countries[id]) deleted[countryKey(id)] = now;
   delete countries[id];
-  return { ...data, countries, cities };
+  return { ...data, countries, cities, deleted };
 }
 
 /** Marks a city or clears it (status null). `city` needs key, name, cc, lon, lat. */
 export function setCity(data, city, status, now = Date.now()) {
   const cities = { ...data.cities };
+  let deleted = data.deleted;
   if (status) {
     const old = cities[city.key];
     const entry = {
@@ -76,14 +104,89 @@ export function setCity(data, city, status, now = Date.now()) {
       lat: city.lat,
       status,
       at: old?.status === status ? old.at : now,
+      u: now,
     };
     if (city.sub) entry.sub = city.sub;
     if (city.pop) entry.pop = city.pop;
     cities[city.key] = entry;
-  } else {
+    deleted = withoutTombstone(deleted, cityKey(city.key));
+  } else if (cities[city.key]) {
     delete cities[city.key];
+    deleted = { ...deleted, [cityKey(city.key)]: now };
   }
-  return { ...data, cities };
+  return { ...data, cities, deleted };
+}
+
+// --- Syncing ------------------------------------------------------------------
+
+const changedAt = (entry) => entry.u ?? entry.at ?? 0;
+
+/** Merges one kind of entry (countries or cities) from two copies. */
+function mergeKind(a, b, prefix, deletedA, deletedB) {
+  const out = {};
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    const x = a[key];
+    const y = b[key];
+    let entry = x && y ? (changedAt(y) > changedAt(x) ? y : x) : (x ?? y);
+    const gone = Math.max(deletedA[`${prefix}:${key}`] ?? -1, deletedB[`${prefix}:${key}`] ?? -1);
+    if (gone >= changedAt(entry)) entry = null;
+    if (entry) out[key] = entry;
+  }
+  return out;
+}
+
+/**
+ * Combines two copies of the data, such as this device's and the one saved
+ * online. For every place the latest change wins, whether that was marking
+ * it, changing it or unmarking it.
+ */
+export function mergeData(a, b) {
+  const deleted = { ...a.deleted };
+  for (const [key, time] of Object.entries(b.deleted)) {
+    if (!(key in deleted) || time > deleted[key]) deleted[key] = time;
+  }
+  const countries = mergeKind(a.countries, b.countries, 'country', a.deleted, b.deleted);
+  const cities = mergeKind(a.cities, b.cities, 'city', a.deleted, b.deleted);
+  // A tombstone is only needed while it is newer than the place it removed.
+  for (const key of Object.keys(deleted)) {
+    const [kind, ...rest] = key.split(':');
+    const id = rest.join(':');
+    const live = kind === 'country' ? countries[id] : cities[id];
+    if (live && changedAt(live) > deleted[key]) delete deleted[key];
+  }
+  return { version: 1, countries, cities, deleted };
+}
+
+/**
+ * The data changed to look like `target`, as fresh changes made now. Undo,
+ * restoring a backup and starting over use this, so that syncing treats them
+ * as the newest change and does not bring back what they removed.
+ */
+export function restoreData(current, target, now = Date.now()) {
+  const deleted = { ...current.deleted };
+  const stamp = (entries, prefix, before) => {
+    const out = {};
+    for (const [key, entry] of Object.entries(entries)) {
+      const same = before[key] && JSON.stringify({ ...before[key], u: 0 }) === JSON.stringify({ ...entry, u: 0 });
+      out[key] = same ? before[key] : { ...entry, u: now };
+      delete deleted[`${prefix}:${key}`];
+    }
+    for (const key of Object.keys(before)) if (!(key in entries)) deleted[`${prefix}:${key}`] = now;
+    return out;
+  };
+  return {
+    version: 1,
+    countries: stamp(target.countries, 'country', current.countries),
+    cities: stamp(target.cities, 'city', current.cities),
+    deleted,
+  };
+}
+
+/** Whether two copies hold the same marks (ignores key order). */
+export function sameData(a, b) {
+  const canon = (d) => JSON.stringify([d.countries, d.cities, d.deleted].map((o) => Object.keys(o).sort().map((k) => [k, o[k]])));
+  return canon(a) === canon(b);
 }
 
 /** 'visited', 'wish' or null for a country, taking its cities into account. */
@@ -290,6 +393,7 @@ export function normalizeData(raw) {
   for (const [id, entry] of Object.entries(raw.countries)) {
     if (!/^[A-Z0-9]{2,3}$/.test(id) || !STATUSES.includes(entry?.status)) continue;
     data.countries[id] = { status: entry.status, at: Number.isFinite(entry.at) ? entry.at : 0 };
+    if (Number.isFinite(entry.u)) data.countries[id].u = entry.u;
   }
   for (const [key, c] of Object.entries(raw.cities)) {
     if (!c || typeof c.name !== 'string' || !c.name.trim() || !STATUSES.includes(c.status)) continue;
@@ -297,7 +401,13 @@ export function normalizeData(raw) {
     const city = { name: c.name.trim().slice(0, 80), cc: c.cc, lon: c.lon, lat: c.lat, status: c.status, at: Number.isFinite(c.at) ? c.at : 0 };
     if (typeof c.sub === 'string' && c.sub) city.sub = c.sub.slice(0, 40);
     if (Number.isFinite(c.pop) && c.pop > 0) city.pop = c.pop;
+    if (Number.isFinite(c.u)) city.u = c.u;
     data.cities[String(key).slice(0, 60)] = city;
+  }
+  if (raw.deleted && typeof raw.deleted === 'object') {
+    for (const [key, time] of Object.entries(raw.deleted)) {
+      if (/^(country|city):.{1,60}$/.test(key) && Number.isFinite(time)) data.deleted[key] = time;
+    }
   }
   return data;
 }

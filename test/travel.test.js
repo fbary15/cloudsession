@@ -6,7 +6,7 @@ import { access, readFile } from 'node:fs/promises';
 import {
   emptyData, fold, flag, setCountry, clearCountry, setCity, countryStatus, countryStatuses,
   citiesIn, summarize, countryGroups, markedCities, buildIndex, search, cityAt, minPopulation,
-  normalizeData, formatPopulation,
+  normalizeData, formatPopulation, mergeData, restoreData, sameData,
 } from '../travel/logic.js';
 import { ALIASES } from '../travel/aliases.js';
 
@@ -47,11 +47,14 @@ test('a bucket-list city puts its country on the bucket list unless it was visit
 
 test('marking and clearing a country', () => {
   let data = setCountry(emptyData(), 'JP', 'wish', 5);
-  assert.deepEqual(data.countries.JP, { status: 'wish', at: 5 });
+  assert.deepEqual(data.countries.JP, { status: 'wish', at: 5, u: 5 });
   data = setCountry(data, 'JP', 'wish', 9);
   assert.equal(data.countries.JP.at, 5, 'marking the same again keeps the date');
-  data = setCountry(data, 'JP', null);
+  data = setCountry(data, 'JP', null, 12);
   assert.deepEqual(data.countries, {});
+  assert.deepEqual(data.deleted, { 'country:JP': 12 }, 'the removal is remembered for syncing');
+  data = setCountry(data, 'JP', 'visited', 15);
+  assert.deepEqual(data.deleted, {}, 'marking again forgets it');
 });
 
 test('clearing a country also clears its cities, and nothing else', () => {
@@ -188,6 +191,50 @@ test('every Hungarian alias points at a city in the built-in list', async () => 
   assert.ok(search(full, 'Milwaukee').cities.length >= 1);
 });
 
+// --- Syncing --------------------------------------------------------------------
+
+test('merging keeps places marked on either device', () => {
+  const phone = setCity(emptyData(), chicago, 'visited', 10);
+  const laptop = setCity(emptyData(), vienna, 'visited', 20);
+  const merged = mergeData(phone, laptop);
+  assert.deepEqual(Object.keys(merged.cities).sort(), ['g2761369', 'g4887398']);
+  assert.ok(sameData(merged, mergeData(laptop, phone)), 'the order does not matter');
+});
+
+test('merging takes the latest change of the same place', () => {
+  const base = setCity(emptyData(), chicago, 'wish', 10);
+  const phone = setCity(base, chicago, 'visited', 30);
+  const laptop = setCity(base, chicago, 'wish', 20);
+  assert.equal(mergeData(phone, laptop).cities.g4887398.status, 'visited');
+  assert.equal(mergeData(laptop, phone).cities.g4887398.status, 'visited');
+});
+
+test('an unmarked place stays unmarked after merging, unless it was marked again later', () => {
+  const base = setCity(setCountry(emptyData(), 'JP', 'wish', 5), chicago, 'visited', 10);
+  const phone = clearCountry(setCity(base, chicago, null, 40), 'JP', 41);
+  const laptop = base; // still has both, from before
+  const merged = mergeData(laptop, phone);
+  assert.deepEqual(merged.cities, {});
+  assert.deepEqual(merged.countries, {});
+
+  const remarked = setCity(laptop, chicago, 'visited', 50);
+  assert.ok(mergeData(remarked, phone).cities.g4887398, 'marked again after the removal');
+  assert.deepEqual(mergeData(remarked, phone).deleted, { 'country:JP': 41 });
+});
+
+test('restoring makes the old state the newest change', () => {
+  const before = setCity(emptyData(), chicago, 'visited', 10);
+  const after = setCity(setCity(before, chicago, null, 20), vienna, 'visited', 21);
+  const undone = restoreData(after, before, 30);
+  assert.deepEqual(Object.keys(undone.cities), ['g4887398']);
+  assert.equal(undone.cities.g4887398.u, 30);
+  assert.equal(undone.deleted['city:g2761369'], 30);
+  // Another device that still has the state before the undo must not win.
+  assert.ok(sameData(mergeData(undone, after), undone));
+  // Restoring onto an identical copy changes nothing.
+  assert.ok(sameData(restoreData(before, before, 99), before));
+});
+
 // --- Backups --------------------------------------------------------------------
 
 test('normalizeData keeps valid marks and drops broken ones', () => {
@@ -204,6 +251,7 @@ test('normalizeData keeps valid marks and drops broken ones', () => {
     version: 1,
     countries: { US: { status: 'visited', at: 3 }, SOL: { status: 'wish', at: 0 } },
     cities: { a: { name: 'Chicago', cc: 'US', lon: -87.65, lat: 41.85, status: 'visited', at: 1, sub: 'IL' } },
+    deleted: {},
   });
   assert.throws(() => normalizeData({ hello: 1 }), /nem a Merre jártam/);
   assert.throws(() => normalizeData(null));
@@ -212,6 +260,8 @@ test('normalizeData keeps valid marks and drops broken ones', () => {
 test('a backup survives a round trip', () => {
   let data = setCity(emptyData(), chicago, 'visited', 7);
   data = setCountry(data, 'JP', 'wish', 8);
+  data = setCity(data, vienna, 'visited', 9);
+  data = setCity(data, vienna, null, 11);
   assert.deepEqual(normalizeData(JSON.parse(JSON.stringify(data))), data);
 });
 

@@ -545,3 +545,68 @@ mark { background: none; color: var(--ink); font-weight: 800; }
   *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }
 }
 .continents-title { margin-top: 28px; }
+
+/* --- Sync -------------------------------------------------------------- */
+.sync-who { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+.sync-who span { display: grid; }
+.sync-who small { color: var(--muted); font-size: 13px; }
+.sync-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
+.sync-dot.synced { background: var(--wish); box-shadow: 0 0 8px var(--wish); }
+.sync-dot.syncing, .sync-dot.loading { background: #f0b03f; }
+.sync-dot.error { background: var(--danger); }
+.sync-error { margin: 10px 0 0; color: var(--danger); font-size: 14px; }
+.round-btn { position: relative; }
+.round-btn .badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--glass-solid);
+}
+.badge.synced { background: var(--wish); }
+.badge.syncing, .badge.loading { background: #f0b03f; }
+.badge.error { background: var(--danger); }
+
+/* --- Install card -------------------------------------------------------- */
+.install-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0 0 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgb(255 122 89 / 18%), rgb(79 209 197 / 12%));
+  border: 1px solid var(--line);
+}
+.install-card img { width: 44px; height: 44px; border-radius: 11px; flex: none; }
+.install-card div { flex: 1; min-width: 0; }
+.install-card b { display: block; margin-bottom: 2px; }
+.install-card p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+.install-card .btn { min-height: 38px; padding: 0 14px; }
+.install-card .icon-btn { width: 30px; height: 30px; background: none; }
+.share-icon { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; }
+
+/* --- Computers: the sheet becomes a side panel next to the globe. -------- */
+@media (min-width: 900px) {
+  .sheet {
+    top: 84px;
+    left: 16px;
+    bottom: 16px;
+    width: 400px;
+    height: auto;
+    border-radius: 22px;
+    border-bottom: 1px solid var(--line);
+    transform: none;
+    touch-action: auto;
+  }
+  .sheet-grab { display: none; }
+  .sheet-head { padding-top: 16px; }
+  .sheet-body { overflow-y: auto !important; padding-bottom: 24px; }
+  .hud { left: 16px; right: 16px; }
+  .hud-stats { width: 400px; justify-content: space-around; }
+  .toasts { left: auto; right: 24px; transform: none; top: 84px; }
+  .row:hover, .add-city:hover { background: var(--raise); }
+  .mark-btn:hover, .btn:hover, .round-btn:hover, .icon-btn:hover { filter: brightness(1.15); }
+}

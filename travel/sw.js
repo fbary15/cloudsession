@@ -7,7 +7,7 @@
 // Marked places live in localStorage, not here, so clearing this cache never
 // loses any of them. The online place search (Photon) is never cached.
 
-const CACHE = 'travel-map-v1';
+const CACHE = 'travel-map-v2';
 const SHELL = [
   './',
   './index.html',
@@ -15,6 +15,9 @@ const SHELL = [
   './app.js',
   './logic.js',
   './aliases.js',
+  './sync.js',
+  './firebase-config.js',
+  './vendor/firebase.js',
   './manifest.webmanifest',
   './vendor/maplibre-gl.js',
   './vendor/maplibre-gl.css',
