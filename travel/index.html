@@ -70,15 +70,35 @@
       </button>
     </header>
 
+    <section class="modal-section" id="sync-section" hidden>
+      <h3>Szinkronizálás</h3>
+      <div id="sync-out">
+        <p class="muted">Lépj be ugyanazzal a fiókkal a telefonodon és a gépeden, és mindenhol ugyanazok a jelölések látszanak.</p>
+        <label class="field"><span>E-mail</span><input id="sync-email" type="email" autocomplete="username" inputmode="email" enterkeyhint="next"></label>
+        <label class="field"><span>Jelszó</span><input id="sync-password" type="password" autocomplete="current-password" enterkeyhint="go"></label>
+        <div class="btn-row">
+          <button type="button" class="btn primary" id="sync-signin">Belépés</button>
+          <button type="button" class="btn" id="sync-signup">Új fiók</button>
+          <button type="button" class="btn" id="sync-google">Google-fiókkal</button>
+        </div>
+        <button type="button" class="text-btn" id="sync-reset">Elfelejtettem a jelszavam</button>
+      </div>
+      <div id="sync-in" hidden>
+        <p class="sync-who"><i class="sync-dot" id="sync-dot"></i><span><b id="sync-email-label"></b><small id="sync-state"></small></span></p>
+        <button type="button" class="btn" id="sync-signout">Kijelentkezés</button>
+      </div>
+      <p class="sync-error" id="sync-error" role="alert" hidden></p>
+    </section>
+
     <section class="modal-section" id="install-section">
-      <h3>Telepítés a telefonra</h3>
-      <p class="muted" id="install-text">iPhone-on: Megosztás gomb, majd <b>Főképernyőhöz adás</b>. Androidon: a böngésző menüjében <b>Alkalmazás telepítése</b>.</p>
+      <h3>Telepítés appként</h3>
+      <p class="muted" id="install-text">iPhone-on: Safariban a Megosztás gomb, majd <b>Főképernyőhöz adás</b>. Androidon: a Chrome menüjében <b>Alkalmazás telepítése</b>. Gépen: Chrome-ban vagy Edge-ben a címsor jobb szélén a telepítés ikon.</p>
       <button type="button" class="btn primary" id="install-btn" hidden>Alkalmazás telepítése</button>
     </section>
 
     <section class="modal-section">
       <h3>Mentés</h3>
-      <p class="muted">Minden a telefonodon marad, fiók nélkül. Mentsd ki időnként, vagy vidd át egy másik eszközre.</p>
+      <p class="muted">A jelölések ezen az eszközön is mindig megmaradnak. Itt fájlba is kimentheted őket, vagy visszatöltheted egy korábbi mentésből.</p>
       <div class="btn-row">
         <button type="button" class="btn" id="export-btn">Mentés letöltése</button>
         <button type="button" class="btn" id="import-btn">Visszaállítás</button>

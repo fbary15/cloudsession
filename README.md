@@ -103,20 +103,61 @@ on a globe you can spin. The app is in Hungarian.
   the map (right click on a computer) adds a place of your own.
 - **Totals**: countries, cities, continents and share of the world's 195
   countries, plus lists of your countries, cities and bucket list.
-- **Saving**: everything stays in the browser on the phone. Settings has a
-  backup you can download or share and restore, and every change can be
-  undone from its toast.
-- **On your phone**: open `https://fbary15.github.io/cloudsession/travel/`,
-  then **Add to Home Screen** (iPhone, from Share) or **Install app**
-  (Android). It opens full screen and works with no connection.
+- **Saving**: everything is saved on the device. Settings has a backup you
+  can download or share and restore, and every change can be undone from
+  its toast.
+- **Sync**: sign in (email and password, or Google on a computer) and the
+  same marks show on every phone and computer. Changes made offline or on
+  two devices at once are merged place by place; the latest change wins.
+- **On your phone and computer**: open
+  `https://fbary15.github.io/cloudsession/travel/`. The home view offers to
+  install it: **Add to Home Screen** on an iPhone (Share menu in Safari),
+  **Install** on Android and in Chrome or Edge on a computer. It then opens
+  in its own window and works with no connection. On a wide screen the
+  sheet becomes a side panel; `/` searches and Escape goes back.
+
+#### Setting up sync (Firebase)
+
+Sync uses a free Firebase project. It stays off until
+`travel/firebase-config.js` has a config.
+
+1. At <https://console.firebase.google.com> create a project (Analytics is
+   not needed).
+2. **Build → Authentication → Get started**, then enable **Email/Password**
+   and **Google** under Sign-in method.
+3. **Authentication → Settings → Authorized domains**: add
+   `fbary15.github.io`.
+4. **Build → Firestore Database → Create database** (production mode, any
+   location near you). Under **Rules**, publish:
+
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{uid} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+     }
+   }
+   ```
+
+5. **Project settings → Your apps → Web (</>)**: register an app and copy
+   the `firebaseConfig` object into `travel/firebase-config.js`. These values
+   are not secret; the rules above are what protect the data.
+
+Each account has one document, `users/{uid}`, holding the data as JSON.
 
 Files:
 
-- `travel/logic.js` holds the rules: marking, totals, search and checking
-  backups. It is fully tested in `test/travel.test.js`.
+- `travel/logic.js` holds the rules: marking, totals, search, merging two
+  devices' data and checking backups. It is fully tested in `test/travel.test.js`.
 - `travel/aliases.js` maps Hungarian names to the built-in city names.
 - `travel/app.js` draws the globe (MapLibre GL JS, vendored in
   `travel/vendor/`), the bottom sheet and saves to the browser.
+- `travel/sync.js` signs in and keeps the data in step with Firestore. It
+  loads `travel/vendor/firebase.js`, a bundle of the Firebase JS SDK 12.19.0
+  (Apache-2.0) made with esbuild from `firebase/app`, `firebase/auth` and
+  `firebase/firestore`, only when sync is configured.
 - `travel/data/` holds the map data: Natural Earth 1:50m countries and
   state lines, and GeoNames cities. `scripts/build-travel-data.mjs` rebuilds
   it (the comment at its top says where to download the sources).

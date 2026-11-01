@@ -4,9 +4,10 @@
 import {
   emptyData, fold, flag, setCountry, clearCountry, setCity, countryStatus, countryStatuses,
   citiesIn, summarize, countryGroups, markedCities, buildIndex, search, cityAt, minPopulation,
-  normalizeData, formatPopulation, CONTINENTS,
+  normalizeData, formatPopulation, restoreData, CONTINENTS,
 } from './logic.js';
 import { ALIASES } from './aliases.js';
+import { createSync, syncConfigured, syncMessage } from './sync.js';
 
 const STORE = 'travel-map-v1';
 const COLORS = {
@@ -53,20 +54,168 @@ function save() {
   }
 }
 
+// --- Sync --------------------------------------------------------------------
+
+let syncState = { state: 'off', email: null, error: null };
+let announceSync = false; // say "synced" once after signing in
+
+const sync = createSync({
+  getData: () => data,
+  setData: (merged) => {
+    data = merged;
+    save();
+    refresh();
+  },
+  onStatus: (status) => {
+    const wasSignedIn = Boolean(syncState.email);
+    syncState = status;
+    if (status.email && !wasSignedIn) announceSync = true;
+    if (status.state === 'synced' && announceSync) {
+      announceSync = false;
+      const n = Object.keys(data.countries).length + Object.keys(data.cities).length;
+      toast(`Szinkronizálva · ${n} jelölés`, { tone: 'wish' });
+    }
+    renderSync();
+  },
+});
+
+const SYNC_TEXT = {
+  loading: 'Kapcsolódás…',
+  'signed-out': '',
+  syncing: 'Szinkronizálás…',
+  synced: 'Minden eszközöd naprakész',
+  error: 'Nem sikerült szinkronizálni',
+  off: '',
+};
+
+function renderSync() {
+  const { state, email, error } = syncState;
+  byId('sync-section').hidden = !syncConfigured;
+  byId('sync-out').hidden = Boolean(email) || state === 'loading';
+  byId('sync-in').hidden = !email;
+  byId('sync-email-label').textContent = email ?? '';
+  byId('sync-state').textContent = navigator.onLine === false && email ? 'Nincs internet – később szinkronizál' : SYNC_TEXT[state] ?? '';
+  byId('sync-dot').className = `sync-dot ${state}`;
+  byId('sync-error').hidden = !error;
+  byId('sync-error').textContent = error ?? '';
+  let badge = byId('menu-btn').querySelector('.badge');
+  if (!badge) {
+    badge = document.createElement('i');
+    byId('menu-btn').append(badge);
+  }
+  badge.className = `badge ${email ? state : ''}`;
+  badge.hidden = !email;
+}
+
+function setupSyncForm() {
+  const email = byId('sync-email');
+  const password = byId('sync-password');
+  const showError = (message) => {
+    byId('sync-error').hidden = !message;
+    byId('sync-error').textContent = message ?? '';
+  };
+  const run = async (button, action) => {
+    showError(null);
+    if (!email.value.trim()) { email.focus(); return showError('Add meg az e-mail-címed.'); }
+    button.disabled = true;
+    try {
+      await action(email.value.trim(), password.value);
+      password.value = '';
+    } catch (err) {
+      showError(syncMessage(err));
+    } finally {
+      button.disabled = false;
+    }
+  };
+  byId('sync-signin').addEventListener('click', (e) => run(e.currentTarget, sync.signIn));
+  byId('sync-signup').addEventListener('click', (e) => run(e.currentTarget, sync.signUp));
+  byId('sync-reset').addEventListener('click', (e) => run(e.currentTarget, async (address) => {
+    await sync.resetPassword(address);
+    toast('Elküldtük a jelszó-visszaállító levelet.');
+  }));
+  byId('sync-google').addEventListener('click', async () => {
+    showError(null);
+    try {
+      await sync.signInWithGoogle();
+    } catch (err) {
+      if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') showError(syncMessage(err));
+    }
+  });
+  // Popups do not work from an app added to an iPhone's home screen.
+  if (isIos() && isStandalone()) byId('sync-google').hidden = true;
+  for (const input of [email, password]) {
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault(); // the settings form would close
+      if (input === email) password.focus();
+      else byId('sync-signin').click();
+    });
+  }
+  byId('sync-signout').addEventListener('click', async () => {
+    await sync.signOut();
+    toast('Kijelentkeztél. A jelölések ezen az eszközön maradnak.');
+  });
+  window.addEventListener('online', renderSync);
+  window.addEventListener('offline', renderSync);
+  renderSync();
+}
+
+// --- Installing ---------------------------------------------------------------
+
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let installPrompt = null;
+
+function installDismissed() {
+  try {
+    return localStorage.getItem('travel-install-dismissed') === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** A card on the home view that explains how to install the app, when it can be. */
+function installCard() {
+  if (isStandalone() || installDismissed() || (!installPrompt && !isIos())) return '';
+  const share = '<svg class="share-icon" viewBox="0 0 24 24" aria-label="Megosztás"><path d="M12 3v12M8 7l4-4 4 4M6 11H5v10h14V11h-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const text = installPrompt
+    ? 'Saját ikonnal, külön ablakban nyílik meg, net nélkül is.'
+    : `Koppints a ${share} Megosztás gombra, majd a <b>Főképernyőhöz adás</b> pontra.`;
+  return `<div class="install-card">
+    <img src="icons/icon-192.png" alt="">
+    <div><b>${installPrompt ? 'Telepítsd appként' : 'Tedd ki a kezdőképernyőre'}</b><p>${text}</p>${installPrompt ? '<button type="button" class="btn primary" data-act="install">Telepítés</button>' : ''}</div>
+    <button type="button" class="icon-btn" data-act="install-close" aria-label="Most nem">${ICONS.close}</button>
+  </div>`;
+}
+
+async function promptInstall() {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  byId('install-btn').hidden = true;
+  if (current().mode === 'home') render();
+}
+
 /** Applies a change, saves it, redraws, and offers to undo it. */
 function commit(next, message, { undo = true, tone = null } = {}) {
   const before = data;
   data = next;
   save();
   refresh();
+  sync.changed();
   navigator.vibrate?.(12);
   if (message) {
     toast(message, {
       tone,
-      action: undo ? ['Visszavonás', () => { data = before; save(); refresh(); }] : null,
+      // Undo is a new change of its own, so syncing does not bring back what it undid.
+      action: undo ? ['Visszavonás', () => { data = restoreData(data, before); save(); refresh(); sync.changed(); }] : null,
     });
   }
 }
+
+/** Computers get a side panel instead of a bottom sheet. */
+const isDesktop = () => innerWidth >= 900;
 
 function countryName(id) {
   if (countryInfo[id]) return countryInfo[id].n;
@@ -143,7 +292,9 @@ function cityOpacity() {
 
 /** The zoom at which the whole globe fits the screen above the sheet. */
 function worldZoom() {
-  const room = Math.min(innerWidth, innerHeight - sheetHeight('peek') - 80);
+  const room = isDesktop()
+    ? Math.min(innerWidth - 460, innerHeight - 140)
+    : Math.min(innerWidth, innerHeight - sheetHeight('peek') - 80);
   return Math.max(0.3, Math.log2((room * 0.92) / 163));
 }
 
@@ -153,8 +304,10 @@ function worldZoom() {
  * passed to each camera move instead.
  */
 function mapPadding(snapName = snap) {
-  const pad = innerWidth >= 900
-    ? { left: 440, right: 30, top: 90, bottom: 30 }
+  // On a computer the map itself is padded for the side panel (see
+  // fitDesktop), so only a margin is added here.
+  const pad = isDesktop()
+    ? { left: 30, right: 30, top: 90, bottom: 30 }
     : { left: 24, right: 24, top: 90, bottom: sheetHeight(snapName) + 20 };
   const spare = innerHeight - 120 - pad.top - pad.bottom;
   if (spare < 0) pad.bottom = Math.max(20, pad.bottom + spare);
@@ -163,6 +316,7 @@ function mapPadding(snapName = snap) {
 
 /** How far to shift a centred place so it sits in the middle of the free area. */
 function freeOffset(snapName = snap) {
+  if (isDesktop()) return [0, 0];
   const p = mapPadding(snapName);
   return [(p.left - p.right) / 2, (p.top - p.bottom) / 2];
 }
@@ -230,6 +384,7 @@ function initMap(countries, regions) {
 
   map.on('load', () => {
     mapReady = true;
+    fitDesktop();
     byId('loading').classList.add('done');
     syncPins();
     startSpin();
@@ -472,7 +627,15 @@ function sheetHeight(name) {
   return Math.min(full, head + extra + safeBottom + 8);
 }
 
+/** Keeps the globe centred in the space next to the side panel on a computer. */
+function fitDesktop() {
+  if (!map) return;
+  const left = isDesktop() ? 420 : 0;
+  if (map.getPadding().left !== left) map.setPadding({ top: 0, bottom: 0, right: 0, left });
+}
+
 function setSnap(name) {
+  if (isDesktop()) name = 'full';
   snap = name;
   const sheet = byId('sheet');
   const visible = sheetHeight(name);
@@ -489,7 +652,7 @@ function setupSheetDrag() {
   let suppressClick = false;
 
   sheet.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || isDesktop()) return;
     if (e.target.closest('input, textarea')) return;
     const inBody = body.contains(e.target);
     if (inBody && snap === 'full') return; // the list scrolls instead
@@ -544,6 +707,7 @@ function setupSheetDrag() {
     if (suppressClick) { e.stopPropagation(); e.preventDefault(); }
   }, true);
   sheet.addEventListener('wheel', (e) => {
+    if (isDesktop()) return;
     if (snap !== 'full' && e.deltaY > 0) setSnap(snap === 'peek' ? 'half' : 'full');
     else if (snap === 'full' && e.deltaY < 0 && body.scrollTop <= 0) setSnap('half');
   }, { passive: true });
@@ -641,7 +805,7 @@ function renderHome(view, head, body) {
     }).join('')}</div>` : '';
   const tabs = [['visited', 'Országok'], ['cities', 'Városok'], ['wish', 'Bakancslista']];
   const segments = `<div class="segments" role="group" aria-label="Lista">${tabs.map(([id, label]) => `<button type="button" data-tab="${id}" aria-pressed="${homeTab === id}">${label}</button>`).join('')}</div>`;
-  body.innerHTML = tiles + segments + homeList() + continents;
+  body.innerHTML = installCard() + tiles + segments + homeList() + continents;
 }
 
 function countryRow(row, status) {
@@ -982,6 +1146,11 @@ function setupSheetClicks() {
     if (!el) return;
     const view = current();
     if (el.dataset.act === 'search') return openSearch();
+    if (el.dataset.act === 'install') return promptInstall();
+    if (el.dataset.act === 'install-close') {
+      try { localStorage.setItem('travel-install-dismissed', '1'); } catch { /* fine */ }
+      return render();
+    }
     if (el.dataset.act === 'back') return back();
     if (el.dataset.act === 'unscope') { view.scope = null; render(); byId('search-input').focus(); return; }
     if (el.dataset.act === 'online') { const q = view.query.trim(); online = { query: '', state: 'idle', results: [] }; runOnline(q, view.scope); return; }
@@ -1010,8 +1179,6 @@ function setupSheetClicks() {
 }
 
 // --- Settings ----------------------------------------------------------------------
-
-let installPrompt = null;
 
 function setupSettings() {
   const dialog = byId('settings');
@@ -1056,7 +1223,7 @@ function setupSettings() {
       const n = Object.keys(next.countries).length + Object.keys(next.cities).length;
       if (!confirm(`Visszaállítod a mentést? ${n} jelölés lesz benne, a mostaniak helyett.`)) return;
       dialog.close();
-      commit(next, 'Mentés visszaállítva');
+      commit(restoreData(data, next), 'Mentés visszaállítva');
     } catch (err) {
       toast(err.message.startsWith('Ez nem') ? err.message : 'Ezt a fájlt nem sikerült beolvasni.');
     }
@@ -1064,26 +1231,25 @@ function setupSettings() {
   byId('reset-btn').addEventListener('click', () => {
     if (!confirm('Biztosan törlöd az összes jelölést?')) return;
     dialog.close();
-    commit(emptyData(), 'Minden jelölés törölve');
+    commit(restoreData(data, emptyData()), 'Minden jelölés törölve');
   });
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
 
-  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-  if (standalone) byId('install-section').hidden = true;
+  if (isStandalone()) byId('install-section').hidden = true;
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     installPrompt = e;
     byId('install-btn').hidden = false;
-    byId('install-text').textContent = 'Telepítsd, és saját ikonnal, teljes képernyőn, internet nélkül is megnyílik.';
+    byId('install-text').textContent = 'Telepítsd, és saját ikonnal, külön ablakban, internet nélkül is megnyílik – telefonon és gépen is.';
+    if (current().mode === 'home') render();
   });
-  byId('install-btn').addEventListener('click', async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    await installPrompt.userChoice;
+  byId('install-btn').addEventListener('click', promptInstall);
+  window.addEventListener('appinstalled', () => {
+    byId('install-section').hidden = true;
     installPrompt = null;
-    byId('install-btn').hidden = true;
+    if (current().mode === 'home') render();
   });
-  window.addEventListener('appinstalled', () => { byId('install-section').hidden = true; });
+  setupSyncForm();
 }
 
 // --- Updates ----------------------------------------------------------------------
@@ -1172,5 +1338,24 @@ async function start() {
   }
 }
 
-window.addEventListener('resize', () => setSnap(snap));
+window.addEventListener('resize', () => {
+  setSnap(snap);
+  fitDesktop();
+});
+
+// Keyboard on a computer: / searches, Escape goes back.
+document.addEventListener('keydown', (e) => {
+  if (byId('settings').open) return;
+  const typing = e.target.closest?.('input, textarea');
+  if (e.key === '/' && !typing) {
+    e.preventDefault();
+    if (current().mode === 'search') byId('search-input').focus();
+    else openSearch();
+  } else if (e.key === 'Escape') {
+    if (typing) e.target.blur();
+    if (stack.length > 1) back();
+  }
+});
+
 start();
+sync.start();
