@@ -10,6 +10,7 @@ keep going from your phone.
 | --- | --- | --- |
 | Word Tiles | `puzzle/` | Playable |
 | Workout Log | `workout/` | Installable |
+| Merre jártam (Travel Map) | `travel/` | Installable |
 | Spending Tracker | | Up next |
 | Morning Dashboard | | Planned |
 
@@ -80,6 +81,49 @@ install it before logging, or move workouts across with a backup.
   design in that script; it uses the Playwright that cloud sessions have
   pre-installed, so the finished PNGs are committed.
 
+### Merre jártam (Travel Map)
+
+Mark where you have been in the world, country by country and city by city,
+on a globe you can spin. The app is in Hungarian.
+
+- **The globe**: zoom out and the map becomes a globe you can spin with a
+  finger; it slowly turns by itself until you touch it. Zoom in and it
+  flattens into a map with country and state borders. Countries you have been
+  to are coral, bucket-list ones teal.
+- **Countries and cities**: tap a country to mark it ("Voltam itt") or put it
+  on your bucket list ("Bakancslista"). Zoom in and the cities appear as dots,
+  big ones first; tap one to mark it. Marking Chicago, Madison and Milwaukee
+  lights up the United States on its own, and each city gets a glowing pin
+  with its name.
+- **Search**: about 50,000 cities (every place with 5,000+ people, every
+  Hungarian town with 1,000+) and all countries are built in and searchable
+  offline, accents optional, with Hungarian names for common places (Bécs,
+  Kolozsvár, Kassa…). For anything smaller there is a search of the whole
+  map (Photon / OpenStreetMap) that needs a connection, and a long press on
+  the map (right click on a computer) adds a place of your own.
+- **Totals**: countries, cities, continents and share of the world's 195
+  countries, plus lists of your countries, cities and bucket list.
+- **Saving**: everything stays in the browser on the phone. Settings has a
+  backup you can download or share and restore, and every change can be
+  undone from its toast.
+- **On your phone**: open `https://fbary15.github.io/cloudsession/travel/`,
+  then **Add to Home Screen** (iPhone, from Share) or **Install app**
+  (Android). It opens full screen and works with no connection.
+
+Files:
+
+- `travel/logic.js` holds the rules: marking, totals, search and checking
+  backups. It is fully tested in `test/travel.test.js`.
+- `travel/aliases.js` maps Hungarian names to the built-in city names.
+- `travel/app.js` draws the globe (MapLibre GL JS, vendored in
+  `travel/vendor/`), the bottom sheet and saves to the browser.
+- `travel/data/` holds the map data: Natural Earth 1:50m countries and
+  state lines, and GeoNames cities. `scripts/build-travel-data.mjs` rebuilds
+  it (the comment at its top says where to download the sources).
+- `travel/sw.js`, `travel/manifest.webmanifest` and `travel/icons/` make it
+  installable and offline. `node scripts/make-travel-icons.mjs` redraws the
+  icons.
+
 ## Publishing with GitHub Pages
 
 The site is plain HTML, CSS and JavaScript with no build step, so GitHub Pages
@@ -102,7 +146,7 @@ npm test             # runs the tests with Node's built-in test runner
 npm run lint         # runs ESLint
 ```
 
-To try the site locally, serve the folder and open `/puzzle/` or `/workout/`:
+To try the site locally, serve the folder and open `/puzzle/`, `/workout/` or `/travel/`:
 
 ```sh
 python3 -m http.server 8000
@@ -138,6 +182,12 @@ More on cloud sessions: <https://code.claude.com/docs/en/claude-code-on-the-web>
 Accepted guesses come from
 [an-array-of-english-words](https://github.com/words/an-array-of-english-words)
 by Zeke Sikelianos, under the MIT License. See `puzzle/WORDLIST-LICENSE.txt`.
+
+Travel Map borders come from [Natural Earth](https://www.naturalearthdata.com/)
+(public domain), cities from [GeoNames](https://www.geonames.org/) via the
+`all-the-cities` package (CC BY 4.0), and the map is drawn with
+[MapLibre GL JS](https://maplibre.org/) (BSD-3-Clause, see
+`travel/vendor/MAPLIBRE-LICENSE.txt`).
 
 Exercise photos come from the
 [Free Exercise DB](https://github.com/yuhonas/free-exercise-db), released
