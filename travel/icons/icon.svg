@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="g" cx="38%" cy="32%" r="75%">
+      <stop offset="0" stop-color="#3a74e0"/>
+      <stop offset=".55" stop-color="#173a7a"/>
+      <stop offset="1" stop-color="#0a1830"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset=".78" stop-color="#4f8cff" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#4f8cff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="c"><circle cx="246" cy="276" r="150"/></clipPath>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#05070d"/>
+  <g transform="translate(0.0 0.0) scale(1)">
+    <circle cx="246" cy="276" r="176" fill="url(#glow)"/>
+    <circle cx="246" cy="276" r="150" fill="url(#g)"/>
+    <g clip-path="url(#c)" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="5">
+      <ellipse cx="246" cy="276" rx="60" ry="150"/>
+      <ellipse cx="246" cy="276" rx="118" ry="150"/>
+      <path d="M96 276h300M110 206h272M110 346h272"/>
+    </g>
+    <path d="M216 230c22-14 52-12 66 6 10 14-2 30 14 42 18 14 10 40-12 46-20 6-30-10-48-10-22 0-36-18-30-40 4-16-8-30 10-44z" fill="#ff7a59"/>
+    <g transform="translate(330 96)">
+      <path d="M48 0C21.5 0 0 21 0 47c0 35 48 87 48 87s48-52 48-87C96 21 74.5 0 48 0z" fill="#ff7a59"/>
+      <circle cx="48" cy="46" r="18" fill="#05070d"/>
+    </g>
+  </g>
+</svg>
